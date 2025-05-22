@@ -45,19 +45,39 @@ public class Position {
 	public static Set<String> whiteNames = new HashSet<String>();
 	public static Set<String> blackNames = new HashSet<String>();
 	static {
-		whiteNames.add("whitePawns");
-		whiteNames.add("whiteKnights");
-		whiteNames.add("whiteBishops");
-		whiteNames.add("whiteRooks");
-		whiteNames.add("whiteQueens");
-		whiteNames.add("whiteKing");
+		whiteNames.add("whitePawns"); // 0
+		whiteNames.add("whiteKnights"); // 1
+		whiteNames.add("whiteBishops"); // 2
+		whiteNames.add("whiteRooks"); // 3
+		whiteNames.add("whiteQueens"); // 4
+		whiteNames.add("whiteKing"); // 5
 		
-		blackNames.add("blackPawns");
-		blackNames.add("blackKnights");
-		blackNames.add("blackBishops");
-		blackNames.add("blackRooks");
-		blackNames.add("blackQueens");
-		blackNames.add("blackKing");
+		blackNames.add("blackPawns"); // 6
+		blackNames.add("blackKnights"); // 7
+		blackNames.add("blackBishops"); // 8
+		blackNames.add("blackRooks"); // 9
+		blackNames.add("blackQueens"); // 10
+		blackNames.add("blackKing"); // 11
+	}
+	
+	
+	public static String[] allNames = {"whitePawns", "whiteKnights", "whiteBishops", "whiteRooks", "whiteQueens", "whiteKing", "blackPawns", "blackKnights", "blackBishops", "blackRooks", "blackQueens", "blackKing"};
+	public static HashMap<String, Byte> nameKeyConversion = new HashMap<String, Byte>();
+	static {
+		// 0 REPRESENTS NO BOARD, subtract index by 1 to access valid board in allNames;
+		nameKeyConversion.put("whitePawns", (byte)1);
+		nameKeyConversion.put("whiteKnights", (byte)2);
+		nameKeyConversion.put("whiteBishops", (byte)3);
+		nameKeyConversion.put("whiteRooks", (byte)4);
+		nameKeyConversion.put("whiteQueens", (byte)5);
+		nameKeyConversion.put("whiteKing", (byte)6);
+		
+		nameKeyConversion.put("blackPawns", (byte)7);
+		nameKeyConversion.put("blackKnights", (byte)8);
+		nameKeyConversion.put("blackBishops", (byte)9);
+		nameKeyConversion.put("blackRooks", (byte)10);
+		nameKeyConversion.put("blackQueens", (byte)11);
+		nameKeyConversion.put("blackKing", (byte)12);
 	}
 	
 	public static void initOccupancy() {
