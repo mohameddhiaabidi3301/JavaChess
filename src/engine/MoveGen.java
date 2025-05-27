@@ -14,7 +14,9 @@ public class MoveGen {
 		String captureKey = (color == "white") ? "whitePawnCaptures" : "blackPawnCaptures";
 		int[] captures = PrecompMoves.precomputedMoves.get(captureKey)[square];
 		
-		ArrayList<Integer> moves = new ArrayList<Integer>();
+		int[] moves = new int[4];
+		int moveCount = 0;
+		
 		boolean interEmpty = false;
 		int pendingDouble = -1;
 		
@@ -49,12 +51,12 @@ public class MoveGen {
 				pushMove |= (0000 << 32);
 				
 				interEmpty = true;
-				moves.add(pushMove);
+				moves[moveCount++] = pushMove;
 			}
 		}
 		
 		if (interEmpty == true && pendingDouble != -1) {
-			moves.add(pendingDouble);
+			moves[moveCount++] = pendingDouble;
 		}
 		
 		for (int move : captures) {
@@ -72,24 +74,11 @@ public class MoveGen {
 				move |= (0000 << 28);
 				move |= (0000 << 32);
 				
-				moves.add(move);
+				moves[moveCount++] = move;
 			}
 		}
 		
-		int[] primitiveMoves = new int[moves.size()];
-		for (int i = 0; i < moves.size(); i++) {
-			primitiveMoves[i] = moves.get(i);
-		}
-		
-		for (int move : primitiveMoves) {
-			byte from = (byte)(move & 0x3F);
-			byte to = (byte)((move >>> 6) & 0x3F);
-			
-			System.out.println(move);
-			System.out.println(from + ", " + to);
-		}
-		
-		return primitiveMoves;
+		return Arrays.copyOf(moves, moveCount);
 	}
 	
 	public static int[] pseudoKnights(byte row, byte col, String color) {
@@ -98,7 +87,8 @@ public class MoveGen {
 		String originBoard = (color == "white") ? "whiteKnights" : "blackKnights";
 		byte originBoardKey = (byte)Position.nameKeyConversion.get(originBoard);
 		
-		ArrayList<Integer> moves = new ArrayList<Integer>();
+		int[] moves = new int[precomputedMoves.length];
+		int moveCount = 0;
 		
 		for (int move : precomputedMoves) {
 			byte from = (byte)((move) & 0x3F);
@@ -114,20 +104,10 @@ public class MoveGen {
 			mainMove |= (0000 << 28);
 			mainMove |= (0000 << 32);
 			
-			moves.add(mainMove);
+			moves[moveCount++] = mainMove;
 		}
 		
-		int[] primitiveMoves = new int[moves.size()];
-		for (int i = 0; i < moves.size(); i++) {
-			primitiveMoves[i] = moves.get(i);
-			
-			byte from = (byte)((primitiveMoves[i]) & 0x3f);
-			byte to = (byte)((primitiveMoves[i] >>> 6) & 0x3f);
-			
-			System.out.println(from + ", " + to + ": " + primitiveMoves[i]);
-		}
-		
-		return primitiveMoves;
+		return moves;
 	}
 	
 	public static int[] pseudoKings(byte row, byte col, String color) {
@@ -136,7 +116,8 @@ public class MoveGen {
 		String originBoard = (color == "white") ? "whiteKing" : "blackKing";
 		byte originBoardKey = (byte)Position.nameKeyConversion.get(originBoard);
 		
-		ArrayList<Integer> moves = new ArrayList<Integer>();
+		int[] moves = new int[precomputedMoves.length];
+		int moveCount = 0;
 		
 		for (int move : precomputedMoves) {
 			byte from = (byte)((move) & 0x3F);
@@ -152,20 +133,10 @@ public class MoveGen {
 			mainMove |= (0000 << 28);
 			mainMove |= (0000 << 32);
 			
-			moves.add(mainMove);
+			moves[moveCount++] = mainMove;
 		}
 		
-		int[] primitiveMoves = new int[moves.size()];
-		for (int i = 0; i < moves.size(); i++) {
-			primitiveMoves[i] = moves.get(i);
-			
-			byte from = (byte)((primitiveMoves[i]) & 0x3f);
-			byte to = (byte)((primitiveMoves[i] >>> 6) & 0x3f);
-			
-			System.out.println(from + ", " + to + ": " + primitiveMoves[i]);
-		}
-		
-		return primitiveMoves;
+		return moves;
 	}
 }
 
