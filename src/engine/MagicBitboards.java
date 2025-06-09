@@ -423,5 +423,3 @@ public class MagicBitboards {
 		return setBits;
 	}
 }
-
-
