@@ -5,35 +5,44 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class Position {
-	public static ArrayList<Object> lookupBoard = new ArrayList<Object>(64) {
-		{
-			add("whiteRooks"); add("whiteKnights"); add("whiteBishops"); add("whiteQueens"); add("whiteKing"); add("whiteBishops"); add("whiteKnights"); add("whiteRooks");
-			add("whitePawns"); add("whitePawns"); add("whitePawns"); add("whitePawns"); add("whitePawns"); add("whitePawns"); add("whitePawns"); add("whitePawns");
-			add(null); add(null); add(null); add(null); add(null); add(null); add(null); add(null);
-			add(null); add(null); add(null); add(null); add(null); add(null); add(null); add(null);
-			add(null); add(null); add(null); add(null); add(null); add(null); add(null); add(null);
-			add(null); add(null); add(null); add(null); add(null); add(null); add(null); add(null);
-			add("blackPawns"); add("blackPawns"); add("blackPawns"); add("blackPawns"); add("blackPawns"); add("blackPawns"); add("blackPawns"); add("blackPawns");
-			add("blackRooks"); add("blackKnights"); add("blackBishops"); add("blackQueens"); add("blackKing"); add("blackBishops"); add("blackKnights"); add("blackRooks");
-		}
+	// FOR GUI ONLY, NOT FOR ENGINE
+	public static String[] guilookupBoard = {
+	    "whiteRooks", "whiteKnights", "whiteBishops", "whiteQueens", "whiteKing", "whiteBishops", "whiteKnights", "whiteRooks",
+	    "whitePawns", "whitePawns", "whitePawns", "whitePawns", "whitePawns", "whitePawns", "whitePawns", "whitePawns",
+	    "", "", "", "", "", "", "", "",
+	    "", "", "", "", "", "", "", "",
+	    "", "", "", "", "", "", "", "",
+	    "", "", "", "", "", "", "", "",
+	    "blackPawns", "blackPawns", "blackPawns", "blackPawns", "blackPawns", "blackPawns", "blackPawns", "blackPawns",
+	    "blackRooks", "blackKnights", "blackBishops", "blackQueens", "blackKing", "blackBishops", "blackKnights", "blackRooks"
 	};
 	
-	public static HashMap<String, Long> bitboards = new HashMap<String, Long>();
-	static {
-		bitboards.put("whitePawns",   0xFFL << 8);
-		bitboards.put("whiteRooks",   (1L << 0L) | (1L << 7L));
-		bitboards.put("whiteKnights", (1L << 1L) | (1L << 6L));
-		bitboards.put("whiteBishops", (1L << 2L) | (1L << 5L));
-		bitboards.put("whiteQueens",  (1L << 3L));
-		bitboards.put("whiteKing",    (1L << 4L));
+	public static byte[] engineLookup = {
+	    4, 2, 3, 5, 6, 3, 2, 4,     // white back rank
+	    1, 1, 1, 1, 1, 1, 1, 1,     // white pawns
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    7, 7, 7, 7, 7, 7, 7, 7,     // black pawns
+	    10, 8, 9, 11, 12, 9, 8, 10  // black back rank
+	};
 
-		bitboards.put("blackPawns",   0XFFL << 48);
-		bitboards.put("blackRooks",   (1L << 56L) | (1L << 63L));
-		bitboards.put("blackKnights", (1L << 57L) | (1L << 62L));
-		bitboards.put("blackBishops", (1L << 58L) | (1L << 61L));
-		bitboards.put("blackQueens",  (1L << 59L));
-		bitboards.put("blackKing",    (1L << 60L));
-	}
+	public static long[] bitboards = {
+	    0L,                                      // 0 - no piece
+	    0xFFL << 8,                              // 1 - whitePawns
+	    (1L << 1) | (1L << 6),                   // 2 - whiteKnights
+	    (1L << 2) | (1L << 5),                   // 3 - whiteBishops
+	    (1L << 0) | (1L << 7),                   // 4 - whiteRooks
+	    (1L << 3),                               // 5 - whiteQueens
+	    (1L << 4),                               // 6 - whiteKing
+	    0xFFL << 48,                             // 7 - blackPawns
+	    (1L << 57) | (1L << 62),                 // 8 - blackKnights
+	    (1L << 58) | (1L << 61),                 // 9 - blackBishops
+	    (1L << 56) | (1L << 63),                 // 10 - blackRooks
+	    (1L << 59),                              // 11 - blackQueens
+	    (1L << 60)                               // 12 - blackKing
+	};
 	
 	public static long whiteOccupied = 0L;
 	public static long blackOccupied = 0L;
@@ -62,6 +71,7 @@ public class Position {
 	
 	
 	public static String[] allNames = {"whitePawns", "whiteKnights", "whiteBishops", "whiteRooks", "whiteQueens", "whiteKing", "blackPawns", "blackKnights", "blackBishops", "blackRooks", "blackQueens", "blackKing"};
+	
 	public static HashMap<String, Byte> nameKeyConversion = new HashMap<String, Byte>();
 	static {
 		// 0 REPRESENTS NO BOARD, subtract index by 1 to access valid board in allNames;
@@ -81,14 +91,53 @@ public class Position {
 	}
 	
 	public static void initOccupancy() {
-		for (String boardName : bitboards.keySet()) {
-			if (whiteNames.contains(boardName)) {
-				whiteOccupied |= bitboards.get(boardName);
+		for (int i = 0; i < 12; i++) {
+			long board = bitboards[i];
+			if (i < 6) {
+				whiteOccupied |= board;
 			} else {
-				blackOccupied |= bitboards.get(boardName);
+				blackOccupied |= board;
 			}
 		}
 		
 		allOccupied = whiteOccupied | blackOccupied;
+	}
+	
+	public static void makeMove(int move) {
+		byte from = (byte)(move & 0x3F);
+		byte to = (byte)((move >>> 6) & 0x3F);
+		byte originKey = (byte)((move >>> 12) & 0xF);
+		byte targetKey = (byte)((move >>> 16) & 0xF);
+		byte color = (byte)((move >>> 31) & 1L);
+		boolean isCapture = targetKey != 0;
+		
+		System.out.println(String.format("Move, From: %d, To: %d, OriginKey %d, targetKey: %d, Color: %d", from, to, originKey, targetKey, color));
+		
+		// White: 0, Black: 1
+		if (color == 0) {
+			whiteOccupied &= ~(1L << from);
+			whiteOccupied |= (1L << to);
+			
+			if (isCapture) blackOccupied &= ~(1L << to); 
+		} else {
+			blackOccupied &= ~(1L << from);
+			blackOccupied |= (1L << to);
+			
+			if (isCapture) whiteOccupied &= ~(1L << to); 
+		}
+		
+		allOccupied &= ~(1L << from);
+		allOccupied |= (1L << to);
+		
+		// Specific Origin Board
+		bitboards[originKey] = bitboards[originKey - 1] & ~(1L << from);
+		bitboards[originKey] = bitboards[originKey - 1] |= (1L << to);
+		
+		// Lookup Boards
+		guilookupBoard[from] = "";
+		guilookupBoard[to] = allNames[originKey - 1];
+		
+		engineLookup[from] = 0;
+		engineLookup[to] = (byte)(originKey);
 	}
 }

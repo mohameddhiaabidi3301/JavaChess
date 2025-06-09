@@ -7,16 +7,16 @@ import java.util.HashSet;
 public class DebugRender {
 	public static void renderLong(long bits) {
 		JFrame mainFrame = new JFrame("Debug");
-		mainFrame.setSize(new Dimension(640, 640));
+		mainFrame.setSize(new Dimension(480, 480));
 		
 		JPanel board = new JPanel();
 		mainFrame.add(board);
-		board.setSize(new Dimension(640, 640));
+		board.setSize(new Dimension(480, 480));
 		board.setLayout(new GridLayout(8, 8));
 		
 		for (int row = 0; row < 8; row++) {
 			for (int col = 0; col < 8; col++) {
-				int square = row * 8 + col;
+				int square = 63 - (row * 8 + (7 - col));
 				String msg = Integer.toString(square);
 				
 				long bitStatus = (long)(bits & (1L << square));
@@ -39,16 +39,16 @@ public class DebugRender {
 		byte captureKey = (byte)((move >>> 20) & 0xF);
 		
 		JFrame mainFrame = new JFrame("Debug");
-		mainFrame.setSize(new Dimension(640, 640));
+		mainFrame.setSize(new Dimension(480, 480));
 		
 		JPanel board = new JPanel();
 		mainFrame.add(board);
-		board.setSize(new Dimension(640, 640));
+		board.setSize(new Dimension(480, 480));
 		board.setLayout(new GridLayout(8, 8));
 		
 		for (int row = 0; row < 8; row++) {
 			for (int col = 0; col < 8; col++) {
-				int square = row * 8 + col;
+				int square = 63 - (row * 8 + (7 - col));
 				
 				Color tileColor = Color.black;
 				Color borderColor = Color.white;
@@ -87,16 +87,16 @@ public class DebugRender {
 		}
 		
 		JFrame mainFrame = new JFrame("Debug");
-		mainFrame.setSize(new Dimension(640, 640));
+		mainFrame.setSize(new Dimension(480, 480));
 		
 		JPanel board = new JPanel();
 		mainFrame.add(board);
-		board.setSize(new Dimension(640, 640));
+		board.setSize(new Dimension(480, 480));
 		board.setLayout(new GridLayout(8, 8));
 		
 		for (int row = 0; row < 8; row++) {
 			for (int col = 0; col < 8; col++) {
-				int square = row * 8 + col;
+				int square = 63 - (row * 8 + (7 - col));
 				
 				Color tileColor = Color.black;
 				Color borderColor = Color.white;

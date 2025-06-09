@@ -1,10 +1,14 @@
 package engine;
 import java.util.HashMap;
+
+import debug.DebugRender;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 
 public class MoveGen {
 	public static int[] pseudoPawns(byte row, byte col, String color) {
+		byte colorKey = (byte)(color == "white" ? 0 : 1);
 		byte square = (byte)(row * 8 + col);
 		String originBoard = (color == "white") ? "whitePawns" : "blackPawns";
 		
@@ -34,21 +38,21 @@ public class MoveGen {
 			
 			if (dist > 8) {
 				int doubleMove = move; // from
-				doubleMove |= (originBoardKey << 16); // originBoard
-				doubleMove |= (targetBoardKey << 20); // captured
+				doubleMove |= (originBoardKey << 12); // originBoard
+				doubleMove |= (targetBoardKey << 16); // captured
 				doubleMove |= (0000 << 24); // isPromotion
 				doubleMove |= (0000 << 28); // isCastle
-				doubleMove |= (0000 << 32); // isEnPassant
+				doubleMove |= (colorKey << 31); // isEnPassant
 				
 				
 				pendingDouble = doubleMove;
 			} else {
 				int pushMove = move; // from
-				pushMove |= (originBoardKey << 16);
-				pushMove |= (targetBoardKey << 20);
+				pushMove |= (originBoardKey << 12);
+				pushMove |= (targetBoardKey << 16);
 				pushMove |= (0000 << 24);
 				pushMove |= (0000 << 28);
-				pushMove |= (0000 << 32);
+				pushMove |= (colorKey << 31);
 				
 				interEmpty = true;
 				moves[moveCount++] = pushMove;
@@ -66,13 +70,13 @@ public class MoveGen {
 			long opponentBits = (color == "white") ? Position.blackOccupied : Position.whiteOccupied;
 			
 			if ((opponentBits & (1L << to)) != 0) {
-				byte targetBoardKey = Position.nameKeyConversion.get(Position.lookupBoard.get(to));
+				byte targetBoardKey = Position.engineLookup[to];
 	
-				move |= (originBoardKey << 16);
-				move |= (targetBoardKey << 20);
+				move |= (originBoardKey << 12);
+				move |= (targetBoardKey << 16);
 				move |= (0000 << 24);
 				move |= (0000 << 28);
-				move |= (0000 << 32);
+				move |= (colorKey << 31);
 				
 				moves[moveCount++] = move;
 			}
@@ -82,6 +86,7 @@ public class MoveGen {
 	}
 	
 	public static int[] pseudoKnights(byte row, byte col, String color) {
+		byte colorKey = (byte)(color == "white" ? 0 : 1);
 		byte square = (byte)(row * 8 + col);
 		int[] precomputedMoves = PrecompMoves.precomputedMoves.get("knightMoves")[square];
 		String originBoard = (color == "white") ? "whiteKnights" : "blackKnights";
@@ -94,23 +99,23 @@ public class MoveGen {
 			byte from = (byte)((move) & 0x3F);
 			byte to = (byte)((move >>> 6) & 0x3F);
 			
-			Object captured = (Object)Position.lookupBoard.get(to);
-			byte captureKey = (captured != null) ? Position.nameKeyConversion.get(captured) : 0;
+			byte captureKey = Position.engineLookup[to];
 			
 			int mainMove = move;
-			mainMove |= (originBoardKey << 16);
-			mainMove |= (captureKey << 20);
+			mainMove |= (originBoardKey << 12);
+			mainMove |= (captureKey << 16);
 			mainMove |= (0000 << 24);
 			mainMove |= (0000 << 28);
-			mainMove |= (0000 << 32);
+			mainMove |= (colorKey << 31);
 			
 			moves[moveCount++] = mainMove;
 		}
 		
-		return moves;
+		return Arrays.copyOf(moves, moveCount);
 	}
 	
 	public static int[] pseudoKings(byte row, byte col, String color) {
+		byte colorKey = (byte)(color == "white" ? 0 : 1);
 		byte square = (byte)(row * 8 + col);
 		int[] precomputedMoves = PrecompMoves.precomputedMoves.get("kingMoves")[square];
 		String originBoard = (color == "white") ? "whiteKing" : "blackKing";
@@ -123,21 +128,118 @@ public class MoveGen {
 			byte from = (byte)((move) & 0x3F);
 			byte to = (byte)((move >>> 6) & 0x3F);
 			
-			Object captured = (Object)Position.lookupBoard.get(to);
-			byte captureKey = (captured != null) ? Position.nameKeyConversion.get(captured) : 0;
+			byte captureKey = Position.engineLookup[to];
 			
 			int mainMove = move;
-			mainMove |= (originBoardKey << 16);
-			mainMove |= (captureKey << 20);
+			mainMove |= (originBoardKey << 12);
+			mainMove |= (captureKey << 16);
 			mainMove |= (0000 << 24);
 			mainMove |= (0000 << 28);
-			mainMove |= (0000 << 32);
+			mainMove |= (colorKey << 31);
 			
 			moves[moveCount++] = mainMove;
 		}
 		
-		return moves;
+		return Arrays.copyOf(moves, moveCount);
+	}
+	
+	public static int[] pseudoBishops(byte row, byte col, String color) {
+		byte colorKey = (byte)(color == "white" ? 0 : 1);
+		byte square = (byte)(row * 8 + col);
+		long myOccupied = (color == "white") ? Position.whiteOccupied : Position.blackOccupied;
+		
+		long blockerMask = MagicBitboards.genBishopBlockerMask(row, col);
+		int blockerCount = (MagicBitboards.getSetBits(blockerMask)).size();
+		
+		long relevantBlockerMask = (blockerMask & Position.allOccupied);
+		
+		long magic = MagicBitboards.bishopMagics[square];
+		long product = (relevantBlockerMask * magic);
+		int hashIndex = (int)(product >>> (64 - blockerCount));
+		
+		int[] precomputedMoves = MagicBitboards.bishopLookupTable[square][hashIndex];
+		int[] finalMoves = new int[precomputedMoves.length];
+		byte moveCount = 0;
+		
+		String originBoard = (color == "white") ? "whiteBishops" : "blackBishops";
+		
+		for (int move : precomputedMoves) {
+			byte to = (byte)((move >>> 6) & 0x3F);
+			
+			if ((myOccupied & (1L << to)) == 0) {
+				byte fromKey = Position.nameKeyConversion.get(originBoard);
+				byte toKey = Position.engineLookup[to];
+				
+				move |= (fromKey << 12);
+				move |= (toKey << 16);
+				
+				move |= (colorKey << 31);
+				
+				finalMoves[moveCount++] = move;
+			}
+		}
+		
+		return Arrays.copyOf(finalMoves, moveCount);
+	}
+	
+	public static int[] pseudoRooks(byte row, byte col, String color) {
+		byte colorKey = (byte)(color == "white" ? 0 : 1);
+		byte square = (byte)(row * 8 + col);
+		long myOccupied = (color == "white") ? Position.whiteOccupied : Position.blackOccupied;
+		
+		long blockerMask = MagicBitboards.genRookBlockerMask(row, col);
+		int blockerCount = MagicBitboards.getSetBits(blockerMask).size();
+		
+		long relevantBlockerMask = blockerMask & Position.allOccupied;
+				
+		long magic = MagicBitboards.rookMagics[square];
+		long product = (relevantBlockerMask * magic);
+		int hashIndex = (int)(product >>> (64 - blockerCount));
+		
+		int[] precomputedMoves = MagicBitboards.rookLookupTable[square][hashIndex];
+		int[] finalMoves = new int[precomputedMoves.length];
+		byte moveCount = 0;
+		
+		String originBoard = (color == "white") ? "whiteRooks" : "blackRooks";
+		
+		for (int move : precomputedMoves) {
+			byte to = (byte)((move >>> 6) & 0x3F);
+			
+			if ((myOccupied & (1L << to)) == 0) {
+				byte fromKey = Position.nameKeyConversion.get(originBoard);
+				byte toKey = Position.engineLookup[to];
+				
+				move |= (fromKey << 12);
+				move |= (toKey << 16);
+				
+				move |= (colorKey << 31);
+				
+				finalMoves[moveCount++] = move;
+			}
+		}
+		
+		return Arrays.copyOf(finalMoves, moveCount);
+	}
+	
+	public static int[] pseudoQueens(byte row, byte col, String color) {
+		int[] rookMoves = pseudoRooks(row, col, color);
+		int[] bishopMoves = pseudoBishops(row, col, color);
+		int[] bothMoves = new int[rookMoves.length + bishopMoves.length];
+		
+		int moveCount = 0;
+		int fromKey = (color == "white") ? 5 : 11;
+		for (int move : rookMoves) {
+			move &= ~(0xF << 12);
+			move |= (fromKey << 12);
+			bothMoves[moveCount++] = move;
+		}
+		
+		for (int move : bishopMoves) {
+			move &= ~(0xF << 12);
+			move |= (fromKey << 12);
+			bothMoves[moveCount++] = move;
+		}
+		
+		return Arrays.copyOf(bothMoves, moveCount);
 	}
 }
-
-

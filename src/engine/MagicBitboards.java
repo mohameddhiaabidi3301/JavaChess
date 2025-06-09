@@ -7,44 +7,45 @@ import java.util.Random;
 import java.util.Set;
 import java.io.*;
 import java.util.*;
+import debug.DebugRender;
 
 public class MagicBitboards {
-	private static long[] rookMagics = {
+	public static long[] rookMagics = {
 	    0x8A80104000800020L, 0x0084020100804000L, 0x00800A1000048020L, 0xC4100020B1000200L,
 	    0x0400440002080420L, 0x0A8004002A801200L, 0x0840140C80400100L, 0x010000820C412300L,
-	    0x0010800212400820L, 0x0008050190002800L, 0x0001080800102000L, 0x0041080080201001L,
-	    0x020820040800890AL, 0x0010800200008440L, 0x03200800418A0022L, 0x0250060600201100L,
-	    0x4440002400860020L, 0x1004402800084000L, 0x00041404C0140004L, 0x5000400908001400L,
-	    0x0000020841000830L, 0x00830A0101000500L, 0x014040A002804040L, 0x4400101008854220L,
-	    0xE008025220022600L, 0x0440244008603000L, 0x0008024004009000L, 0x0801009002100002L,
-	    0x0400200200010811L, 0x3204020044012400L, 0x0002100088200100L, 0x020800A004091041L,
-	    0x000210C224200241L, 0x00200A0C02040080L, 0x004D8028104C0800L, 0x813C0A0002900012L,
-	    0x0008104200208020L, 0x240400A000A04080L, 0x0802199100100042L, 0x062C4C0020100280L,
-	    0x0020104280800820L, 0x20C8010080A80200L, 0x1114084080464008L, 0x2000025430001805L,
-	    0x1404C4A100110008L, 0x0000008400012008L, 0x3045140080022010L, 0x8040028410080100L,
-	    0x0220200310204820L, 0x0200082244048202L, 0x00090984C0208022L, 0x8000110120040900L,
-	    0x9000402400080084L, 0x2402100100038020L, 0x0098400600008028L, 0x000111000040200CL,
-	    0x0102402208108102L, 0x0440041482204101L, 0x4004402000040811L, 0x804A000810402002L,
-	    0xc7760028206d103aL, 0x0440341108009002L, 0x0000008825084204L, 0x2084002112428402L
+	    0x0010800212400820L, 0x0008050190002800L, 0x56003046012181L, 0x0041080080201001L,
+	    0x020820040800890AL, 0x0010800200008440L, 0x6cac00287e2c1017L, 0x95e600054e14058fL,
+	    0x8ee5e88003854007L, 0x1004402800084000L, 0x00041404C0140004L, 0x5000400908001400L,
+	    0x517e8e0020aa0046L, 0x00830A0101000500L, 0x75ad40050010802L, 0xde16e2000ac5941bL,
+	    0x5e5c00680028e63L, 0x0440244008603000L, 0x0008024004009000L, 0xe831ea0200207041L,
+	    0x0400200200010811L, 0x3204020044012400L, 0x2ec7f67c00074810L, 0xf225770e000a8b5cL,
+	    0x6a08c0028880062bL, 0x00200A0C02040080L, 0x004D8028104C0800L, 0x813C0A0002900012L,
+	    0x1c95003411001801L, 0x240400A000A04080L, 0xbae85a0d24002830L, 0xd9c849095e000c84L,
+	    0x3f1b278440048009L, 0xad1000e01547c001L, 0x1114084080464008L, 0x2000025430001805L,
+	    0x1404C4A100110008L, 0x14ca0051142a0018L, 0x16a2c8b03a0c0003L, 0xf367384d05960004L,
+	    0x56cd8a010947a200L, 0x4782028500406200L, 0xf0dc910460034700L, 0x2906e08a00c01200L,
+	    0xab4b60e692007600L, 0x6c76006c38d08200L, 0x58377e17af986c00L, 0xf3d45f24014c8600L,
+	    0xda91c0a082065302L, 0x0440041482204101L, 0x97b500600052c13bL, 0X71bf266a0020404eL,
+	    0xc7760028206d103aL, 0xbbf20048100c4126L, 0x148a3b101627980cL, 0xa4b1440528c3830aL
 	};
 	
-	private static long[] bishopMagics = {
-	    0x0080810410820200L, 0x2010520422401000L, 0xa7d0045780625099L, 0x1001050002610001L,
-	    0x9000908280000000L, 0x20080442A0000001L, 0x0221A80045080800L, 0x000060200A404000L,
-	    0x0020100894408080L, 0x0800084021404602L, 0x0040804100298014L, 0x5080201060400011L,
-	    0x49000620A0000000L, 0x8000001200300000L, 0x4000008241100060L, 0x0000040920160200L,
-	    0x0042002000240090L, 0x000484100420A804L, 0x0008000102000910L, 0x04880010A8100202L,
-	    0x0004018804040402L, 0x0202100108281120L, 0xC201162010101042L, 0x0240088022010B80L,
-	    0x008301600C240814L, 0x000028100E142050L, 0x0020880000838110L, 0x00410800040204A0L,
-	    0x2012002206008040L, 0x004402881900A008L, 0x14A80004804C1080L, 0xA004814404800F02L,
-	    0x00C0180230101600L, 0x000C905200020080L, 0x060400080010404AL, 0x00040401080C0100L,
-	    0x0020121010140040L, 0x0000500080000861L, 0x8202090241002020L, 0x2008022008002108L,
-	    0x0200402401042000L, 0x0002E03210042000L, 0x0110040080422400L, 0x908404C0584040C0L,
-	    0x1000204202240408L, 0x8002002200200200L, 0x2002008101081414L, 0x0002080021098404L,
-	    0x0060110080680000L, 0x1080048108420000L, 0x0400184014100000L, 0x008081A004012240L,
-	    0x00110080448182A0L, 0xA4002000604A4000L, 0x0004002811049020L, 0x00024A0410A10220L,
-	    0x0808090089013000L, 0x0C80800400805800L, 0x0001020100061618L, 0x1202820040501008L,
-	    0x413010050C100405L, 0x0004248204042020L, 0x0044004408280110L, 0x6010220080600502L
+	public static long[] bishopMagics = {
+	    0xf15f9fe3eee599e0L, 0xbd18700c82055265L, 0xf6901c1589e19668L, 0xa987df5edf026612L,
+	    0x1044146086e4a645L, 0xff63101a3090fa6cL, 0xf4e8e904202051d4L, 0xd77a0103411018abL,
+	    0x18c60cb86a380e0dL, 0xfb4eca2e184e0084L, 0x2afa10088604c163L, 0xd017143402835cebL,
+	    0xd06eac10448bdc90L, 0xdb73b4242088978eL, 0x6341a1180d303846L, 0xe57af6f405e9c540L,
+	    0xc8447e58600c3c43L, 0x99604d4e58622480L, 0x5cd803d0088fe0c9L, 0x1ece81a80603c095L,
+	    0x26ac03d683a01144L, 0x2fe900da00621210L, 0x39fa10340613143dL, 0xc9ca15a5cb041eabL,
+	    0x5308b865207a302aL, 0x5346206458880990L, 0x42218811900264a0L, 0x00410800040204A0L,
+	    0x2012002206008040L, 0xfbf90f001a034118L, 0xd8c504033f24011eL, 0xb6965249fa030c07L,
+	    0x1de2480cd240d054L, 0x34610837925ef46aL, 0xfa5a0503057003c9L, 0x00040401080C0100L,
+	    0x0020121010140040L, 0xe71ba68200d90105L, 0x52e908188ed21a07L, 0x46eb94e9662e0276L,
+	    0xcf36efc6fb0e604bL, 0x8e2942718066063L, 0x617228e804020802L, 0xc2f1daa088011d15L,
+	    0x8518144a92009c01L, 0x7b4e9d8d06007900L, 0x6df4181809114543L, 0xd5aba3f409536c35L,
+	    0x68b13dc4c3dc8bfL, 0xc3cd84042a06bdc8L, 0xa99a1cce080c4080L, 0x7c20b9ea61881696L,
+	    0x8c4b0913360200c4L, 0xe517c0c8796900f1L, 0xc3a0349548050b3aL, 0xc8c8321812087076L,
+	    0x991e02010c222e3bL, 0x302ea4e2031c2063L, 0xab2b569b9d183833L, 0xf4714b913a841401L,
+	    0xf4fb4b2c1f8db3ecL, 0x3f41003f302b86daL, 0x4c68e02a96162c0cL, 0x622004bf08059088L,
 	};
 	
 	public static int[][][] rookLookupTable = new int[64][][];
@@ -53,6 +54,13 @@ public class MagicBitboards {
 	private static int getTerminalPoint(int vector1, int current) {
 		if (vector1 == 1) return 6;
 		if (vector1 == -1) return 1;
+		
+		return current;
+	}
+	
+	private static int getFullTerminalPoint(int vector1, int current) {
+		if (vector1 == 1) return 7;
+		if (vector1 == -1) return 0;
 		
 		return current;
 	}
@@ -104,8 +112,8 @@ public class MagicBitboards {
 		};
 		
 		for (int[] direction : moveDirections) {
-			int terminalRow = getTerminalPoint(direction[0], row);
-			int terminalCol = getTerminalPoint(direction[1], col);
+			int terminalRow = getFullTerminalPoint(direction[0], row);
+			int terminalCol = getFullTerminalPoint(direction[1], col);
 			
 			for (int i = 1; i < 8; i++) {
 				int targetRow = row + (direction[0] * i);
@@ -134,8 +142,8 @@ public class MagicBitboards {
 		int square = row * 8 + col;
 		
 		for (int[] direction : moveDirections) {
-			int terminalRow = getTerminalPoint(direction[0], row);
-			int terminalCol = getTerminalPoint(direction[1], col);
+			int terminalRow = getFullTerminalPoint(direction[0], row);
+			int terminalCol = getFullTerminalPoint(direction[1], col);
 			
 			if (row == terminalRow && col == terminalCol) continue;
 			
@@ -150,7 +158,7 @@ public class MagicBitboards {
 				moves[moveCount++] = move;
 				
 				if (targetRow == terminalRow && targetCol == terminalCol) break;
-				if (((blockerPermutation & (targetSquare)) == 1)) break;
+				if ((blockerPermutation & (1L << targetSquare)) != 0) break;
 			}
 		}
 		
@@ -177,15 +185,18 @@ public class MagicBitboards {
 				int targetRow = row + (direction[0] * i);
 				int targetCol = col + (direction[1] * i);
 				int targetSquare = targetRow * 8 + targetCol;
+				long dataAtTarget = ((blockerPermutation & (1L << targetSquare)));
 				
 				if (i == 1 && !withinBounds(targetRow, targetCol, 0, 7)) break;
-				if (!withinBounds(targetRow, targetCol, 1, 6)) break;
+				if (!withinBounds(targetRow, targetCol, 0, 7)) break;
 				
 				int move = square;
 				move |= (targetSquare << 6);
 				moves[moveCount++] = move;
 				
-				if (((blockerPermutation & (1 << targetSquare)) == 1)) break;
+				if (dataAtTarget != 0) {
+					break;
+				}
 			}
 		}
 		
@@ -193,6 +204,7 @@ public class MagicBitboards {
 	}
 	
 	public static void initRookLookups() {
+		int collisionCount = 0;
 		for (int square = 0; square < 64; square++) {
 			int row = (int)Math.floor(square / 8);
 			int col = square % 8;
@@ -221,24 +233,30 @@ public class MagicBitboards {
 				
 				if (rookLookupTable[square][hashIndex] != null) {
 				    System.err.println("Warning: Overwriting existing entry at [" + square + "][" + hashIndex + "]");
+				    collisionCount++;
 				}
 				
 				rookLookupTable[square][hashIndex] = pseudoMoves;
 			}
 		}
+		
+		if (collisionCount > 0) {
+			System.err.println("A total of " + collisionCount + " collisions from the rook magics");
+		}
 	}
 	
 	public static void initBishopLookups() {
+		int collisionCount = 0;
 		for (int square = 0; square < 64; square++) {
 			int row = (int)Math.floor(square / 8);
 			int col = square % 8;
 			
-			long blockerMask = genRookBlockerMask(row, col);
+			long blockerMask = genBishopBlockerMask(row, col);
 			ArrayList<Integer> blockerLocations = getSetBits(blockerMask);
 			int numBlockers = blockerLocations.size();
 			int numPermutations = 1 << numBlockers;
 			int shift = 64 - numBlockers;
-			long magic = rookMagics[square];
+			long magic = bishopMagics[square];
 			
 			bishopLookupTable[square] = new int[numPermutations][];
 			
@@ -256,11 +274,16 @@ public class MagicBitboards {
 				int hashIndex = (int)((product >>> shift));
 				
 				if (bishopLookupTable[square][hashIndex] != null) {
-				    System.err.println("Warning: Overwriting existing entry at [" + square + "][" + hashIndex + "]");
+				    System.err.println("Warning: Overwriting existing entry at [" + square + "][" + hashIndex + "] Permutation Number: " + j);
+				    collisionCount++;
 				}
 				
 				bishopLookupTable[square][hashIndex] = pseudoMoves;
 			}
+		}
+		
+		if (collisionCount > 0) {
+			System.err.println("A total of " + collisionCount + " collisions from the bishop magics");
 		}
 	}
 	
@@ -282,7 +305,7 @@ public class MagicBitboards {
 	            int row = (int)Math.floor(square / 8);
 	            int col = square % 8;
 
-	            for (int t = 0; t <= 1; t++) {
+	            for (int t = 0; t <= 0; t++) {
 	                boolean isRook = (t == 0) ? true : false;
 	                long blockerMask = (isRook) ? genRookBlockerMask(row, col) : genBishopBlockerMask(row, col);
 	                ArrayList<Integer> blockerLocations = getSetBits(blockerMask);
@@ -400,3 +423,5 @@ public class MagicBitboards {
 		return setBits;
 	}
 }
+
+

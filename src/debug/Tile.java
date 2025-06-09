@@ -11,7 +11,7 @@ public class Tile extends JPanel {
 		this.tileColor = tileColor;
 		this.borderColor = borderColor;
 		this.display = display;
-		setPreferredSize(new Dimension(80, 80));
+		setPreferredSize(new Dimension(60, 60));
 	}
 	
 	@Override

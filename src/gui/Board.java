@@ -1,0 +1,237 @@
+package gui;
+import java.awt.Dimension;
+import java.awt.GridLayout;
+import java.awt.Point;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
+import java.awt.Color;
+import java.awt.Component;
+import java.util.HashMap;
+
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
+
+import debug.DebugRender;
+import engine.Position;
+import engine.keyToMoves;
+
+import javax.swing.JLayeredPane;
+
+public class Board {
+	static public JFrame board = new JFrame("Board");
+	static private JLayeredPane layerPane = new JLayeredPane();
+	static private JPanel tilePanel = new JPanel();
+	static private JPanel piecePanel = new JPanel();
+	static private JPanel previewPanel = new JPanel();
+	
+	static final int tileSize = 60;
+	static final int halfTileSize = tileSize / 2;
+	static private final Color lightColor = Color.white;
+	static private final Color darkColor = new Color(179, 142, 78);
+	
+	static record ClickData(int row, int col, int square, String pieceName, byte pieceId, String pieceColor, JPanel component, int[] legalMoves, int pieceUIxOrigin, int pieceUIyOrigin) {};
+	
+	private static ClickData activeDrag = null;
+	private static ClickData getDataAtPos(int clickX, int clickY) {
+		int row = 7 - (clickY / tileSize);
+		int col = (clickX / tileSize);
+		int square = row * 8 + col;
+		String color = (Position.engineLookup[square] < 6) ? "white" : "black";
+		
+		int[] moves = new int[0];
+		if (Position.engineLookup[square] != 0) {
+			moves = keyToMoves.pseudoMap[Position.engineLookup[square] - 1].apply((byte)row, (byte)col, color);
+		}
+		
+		JPanel component = (JPanel)piecePanel.getComponentAt(clickX, clickY);
+		
+		//DebugRender.renderMoveArray(moves);
+		
+		//System.out.println("Clicked at (" + clickX + ", " + clickY + ") [" + row + ", " + col + ", " + square + "], " + Position.lookupBoard.get(square));
+		return new ClickData(row, col, square, Position.guilookupBoard[square], Position.engineLookup[square], color, component, moves, component.getX(), component.getY());
+	}
+	
+	private static void renderPreviews(int[] moveArray) {
+		for (int move : moveArray) {
+			int to = ((move >>> 6) & 0x3F);
+			int row = 7 - (to / 8);
+			int col = (to % 8);
+			int square = (row * 8 + col);
+			
+			JPanel newPreview = new PreviewTile(30);
+			previewPanel.add(newPreview);
+			newPreview.setBounds(col * tileSize, row * tileSize, tileSize, tileSize);
+		}
+	}
+	
+	private static void clearPreviews() {
+		previewPanel.removeAll();
+		previewPanel.revalidate();
+		previewPanel.repaint();
+	}
+	
+	private static void renderAllPieces() {
+		piecePanel.removeAll();
+
+		for (int square = 0; square < 64; square++) {
+			String piece = Position.guilookupBoard[square];
+			if (piece == null || piece.isEmpty()) continue;
+
+			int row = square / 8;
+			int col = square % 8;
+
+			JPanel newPiece = new Piece(piece, tileSize);
+			piecePanel.add(newPiece);
+			newPiece.setBounds(col * tileSize, (7 - row) * tileSize, tileSize, tileSize);
+		}
+
+		piecePanel.revalidate();
+		piecePanel.repaint();
+	}
+
+	
+	public static void init() {
+		Dimension boardSize = new Dimension(tileSize * 8, tileSize * 8);
+		layerPane.setPreferredSize(boardSize);
+		
+		tilePanel.setBounds(0, 0, tileSize * 8, tileSize * 8);
+		tilePanel.setLayout(new GridLayout(8, 8));
+		
+		piecePanel.setBounds(0, 0, tileSize * 8, tileSize * 8);
+		piecePanel.setLayout(null);
+		
+		previewPanel.setBounds(0, 0, tileSize * 8, tileSize * 8);
+		previewPanel.setLayout(null);
+		
+		for (int row = 0; row < 8; row++) {
+			for (int col = 0; col < 8; col++) {
+				int square = row * 8 + (7 - col);
+				
+				Color tileColor = ((row + col) % 2 == 0) ? lightColor : darkColor;
+				Color borderColor = tileColor;
+				
+				JPanel newTile = new Tile(tileColor, borderColor, tileSize);
+				tilePanel.add(newTile);
+				
+				Object pieceType = Position.guilookupBoard[63 - square];
+				JPanel newPiece = new Piece((String)pieceType, tileSize);
+
+				piecePanel.add(newPiece);
+				newPiece.setBounds(col * tileSize, row * tileSize, tileSize, tileSize);
+			}
+		}
+		
+		layerPane.add(tilePanel, 1);
+		layerPane.add(piecePanel, 0);
+		layerPane.add(previewPanel, 0);
+		board.add(layerPane);
+		
+		board.pack();
+		board.setVisible(true);
+		
+		piecePanel.setOpaque(false);
+		previewPanel.setOpaque(false);
+		
+		board.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		layerPane.addComponentListener(new ComponentAdapter() {
+			@Override
+			public void componentResized(ComponentEvent e) {
+				JPanel panel1 = (JPanel)layerPane.getComponent(0);
+				JPanel panel2 = (JPanel)layerPane.getComponent(1);
+				
+				panel1.setSize(layerPane.getWidth(), layerPane.getHeight());
+				panel2.setSize(layerPane.getWidth(), layerPane.getHeight());
+			}
+		});
+		
+		layerPane.addMouseListener(new MouseListener() {
+			
+			@Override
+			public void mousePressed(MouseEvent e) {
+				Point converted = SwingUtilities.convertPoint(layerPane, e.getPoint(), piecePanel);
+				int clickX = converted.x;
+				int clickY = converted.y;
+				
+				ClickData data = getDataAtPos(clickX, clickY);
+				
+				if (!data.pieceName.isEmpty()) {
+					activeDrag = data;
+					renderPreviews(data.legalMoves);
+				}
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				Point converted = SwingUtilities.convertPoint(layerPane, e.getPoint(), piecePanel);
+				int releaseX = converted.x;
+				int releaseY = converted.y;
+				ClickData releaseData = getDataAtPos(releaseX, releaseY);
+				
+				boolean foundMatch = false;
+				if (activeDrag != null) {
+					int row = releaseData.row;
+					int col = releaseData.col;
+					int square = (row * 8 + col);
+					
+					for (int move : activeDrag.legalMoves) {
+						byte to = (byte)((move >>> 6) & 0x3F);
+						
+						System.out.println(to + " vs released on square " + square);
+						if (square == to) {
+							JPanel activeComponent = (JPanel)activeDrag.component;
+							activeComponent.setBounds(col * tileSize, (7 - row) * tileSize, tileSize, tileSize);
+							
+							foundMatch = true;
+							
+							Position.makeMove(move);
+							renderAllPieces();
+							
+							break;
+						}
+					}
+				}
+				
+				if (!foundMatch && activeDrag != null) {
+					int pieceUIxOrigin = activeDrag.pieceUIxOrigin;
+					int pieceUIyOrigin = activeDrag.pieceUIyOrigin;
+					
+					JPanel activeComponent = (JPanel)activeDrag.component;
+					activeComponent.setBounds(pieceUIxOrigin, pieceUIyOrigin, tileSize, tileSize);
+				}
+
+				activeDrag = null;
+				clearPreviews();
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e) {}
+
+			@Override
+			public void mouseExited(MouseEvent e) {}
+			
+			@Override
+			public void mouseClicked(MouseEvent e) {}
+		});
+		
+		layerPane.addMouseMotionListener(new MouseMotionListener() {
+			@Override
+			public void mouseDragged(MouseEvent e) {
+				Point converted = SwingUtilities.convertPoint(layerPane, e.getPoint(), piecePanel);
+				int mouseX = converted.x;
+				int mouseY = converted.y;
+				
+				if (activeDrag != null) {
+					JPanel updateComponent = (JPanel)activeDrag.component;
+					updateComponent.setBounds(mouseX - halfTileSize, mouseY - halfTileSize, updateComponent.getWidth(), updateComponent.getHeight());
+				}
+			}
+
+			@Override
+			public void mouseMoved(MouseEvent e) {}
+		});
+	}
+}
