@@ -10,25 +10,26 @@ import debug.DebugRender;
 import gui.Board;
 public class Main {
 	private static void searchMagics() {
-		MagicSearchThread t1 = new MagicSearchThread(25, 26);   // 8 positions (0-7)
+		int[] range1 = {1, 2, 3, 4, 5, 6, 8, 9, 11, 12, 13, 17, 18, 19, 21, 25, 37, 43, 44};
+		int[] range2 = {4, 5, 6, 1, 2, 3, 8, 9, 11, 12, 13, 17, 18, 19, 21, 25, 37, 43, 44};
+		int[] range3 = {11, 12, 13, 17, 18, 19, 21, 25, 37, 43, 44, 4, 5, 6, 1, 2, 3, 8, 9};
+		
+		MagicSearchThread t1 = new MagicSearchThread(range1);   // 8 positions (0-7)
 		t1.start();
-		MagicSearchThread t2 = new MagicSearchThread(25, 26);  // 8 positions (9-16) 
+		MagicSearchThread t2 = new MagicSearchThread(range2);  // 8 positions (9-16) 
 		t2.start();
-		MagicSearchThread t3 = new MagicSearchThread(25, 26); // 8 positions (17-24)
+		MagicSearchThread t3 = new MagicSearchThread(range3); // 8 positions (17-24)
 		t3.start();
-		MagicSearchThread t4 = new MagicSearchThread(25, 26); // 8 positions (25-32)
+		MagicSearchThread t4 = new MagicSearchThread(range1); // 8 positions (25-32)
 		t4.start();
-		MagicSearchThread t5 = new MagicSearchThread(25, 26); // 8 positions (33-40)
+		MagicSearchThread t5 = new MagicSearchThread(range2); // 8 positions (33-40)
 		t5.start();
-		MagicSearchThread t6 = new MagicSearchThread(25, 26); // 7 positions (41-47)
+		MagicSearchThread t6 = new MagicSearchThread(range3); // 7 positions (41-47)
 		t6.start();
-		MagicSearchThread t7 = new MagicSearchThread(25, 26); // 5 positions (52-56)
-		t7.start();
-		MagicSearchThread t8 = new MagicSearchThread(25, 26); // 3 positions (61-63)
-		t8.start();
+	
 		try {
 		    t1.join(); t2.join(); t3.join(); t4.join();
-		    t5.join(); t6.join(); t7.join(); t8.join();
+		    t5.join(); t6.join();
 		} catch (InterruptedException e) {
 		    e.printStackTrace();
 		}
@@ -57,8 +58,8 @@ public class Main {
 		//DebugRender.renderMoveArray(MagicBitboards.simulateRook(5, 6, Position.allOccupied & MagicBitboards.genRookBlockerMask(5, 6)));
 		//DebugRender.renderMoveArray(MoveGen.pseudoRooks((byte)5, (byte)6, "black"));
 		
-		//searchMagics();
+		searchMagics();
 		
-		Board.init();
+		//Board.init();
 	}
 }

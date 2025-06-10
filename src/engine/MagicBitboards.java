@@ -17,11 +17,11 @@ public class MagicBitboards {
 	    0x020820040800890AL, 0x0010800200008440L, 0x6cac00287e2c1017L, 0x95e600054e14058fL,
 	    0x8ee5e88003854007L, 0x1004402800084000L, 0x00041404C0140004L, 0x5000400908001400L,
 	    0x517e8e0020aa0046L, 0x00830A0101000500L, 0x75ad40050010802L, 0xde16e2000ac5941bL,
-	    0x5e5c00680028e63L, 0x0440244008603000L, 0x0008024004009000L, 0xe831ea0200207041L,
-	    0x0400200200010811L, 0x3204020044012400L, 0x2ec7f67c00074810L, 0xf225770e000a8b5cL,
-	    0x6a08c0028880062bL, 0x00200A0C02040080L, 0x004D8028104C0800L, 0x813C0A0002900012L,
+	    0x5e5c00680028e63L, 0x0440244008603000L, 0xa0042002183d4L, 0xe831ea0200207041L,
+	    0x152a22860010a600L, 0xc2d6007200344810L, 0x2ec7f67c00074810L, 0xf225770e000a8b5cL,
+	    0x6a08c0028880062bL, 0x8fb22000c4c01003L, 0x16752002c1003303L, 0xcb4790163001001L,
 	    0x1c95003411001801L, 0x240400A000A04080L, 0xbae85a0d24002830L, 0xd9c849095e000c84L,
-	    0x3f1b278440048009L, 0xad1000e01547c001L, 0x1114084080464008L, 0x2000025430001805L,
+	    0x3f1b278440048009L, 0xad1000e01547c001L, 0x9f21a00043010033L, 0x2000025430001805L,
 	    0x1404C4A100110008L, 0x14ca0051142a0018L, 0x16a2c8b03a0c0003L, 0xf367384d05960004L,
 	    0x56cd8a010947a200L, 0x4782028500406200L, 0xf0dc910460034700L, 0x2906e08a00c01200L,
 	    0xab4b60e692007600L, 0x6c76006c38d08200L, 0x58377e17af986c00L, 0xf3d45f24014c8600L,
@@ -287,21 +287,21 @@ public class MagicBitboards {
 		}
 	}
 	
-	public static void calculateMagics(int rangeMin, int rangeMax) {
+	public static void calculateMagics(int[] squaresToSearch) {
 	    long[] calculatedRookMagics = new long[64];
 	    long[] calculatedBishopMagics = new long[64];
 	    Random rng = new Random();
 	    
 	    // Create output file with timestamp
-	    String filename = String.format("magics_range_%d_%d_%d.txt", rangeMin, rangeMax, System.currentTimeMillis());
+	    String filename = String.format("magics[%s]_%d.txt", Arrays.toString(squaresToSearch), System.currentTimeMillis());
 	    
 	    try (PrintWriter writer = new PrintWriter(new FileWriter(filename, true))) {
-	        writer.println(String.format("=== Magic Number Search Results for Range %d-%d ===", rangeMin, rangeMax));
+	        writer.println(String.format("=== Magic Number Search Results for [%s] ===", Arrays.toString(squaresToSearch)));
 	        writer.println("Started at: " + new Date());
 	        writer.println();
 	        writer.flush(); // Ensure header is written immediately
 	        
-	        for (int square = rangeMin; square <= rangeMax; square++) {
+	        for (int square : squaresToSearch) {
 	            int row = (int)Math.floor(square / 8);
 	            int col = square % 8;
 
@@ -386,14 +386,14 @@ public class MagicBitboards {
 	        writer.println("Completed at: " + new Date());
 	        writer.println();
 	        writer.println("Rook Magics:");
-	        for (int i = rangeMin; i <= rangeMax; i++) {
+	        for (int i : squaresToSearch) {
 	            if (calculatedRookMagics[i] != 0) {
 	                writer.println(String.format("rook_magics[%d] = 0x%sL;", i, Long.toHexString(calculatedRookMagics[i])));
 	            }
 	        }
 	        writer.println();
 	        writer.println("Bishop Magics:");
-	        for (int i = rangeMin; i <= rangeMax; i++) {
+	        for (int i : squaresToSearch) {
 	            if (calculatedBishopMagics[i] != 0) {
 	                writer.println(String.format("bishop_magics[%d] = 0x%sL;", i, Long.toHexString(calculatedBishopMagics[i])));
 	            }
@@ -405,7 +405,7 @@ public class MagicBitboards {
 	    }
 	    
 	    // Still print to console for immediate feedback
-	    System.out.println(String.format("Results for range %d - %d. Rooks:", rangeMin, rangeMax));
+	    System.out.println(String.format("Results for range [%s]. Rooks:", Arrays.toString(squaresToSearch)));
 	    System.out.println(Arrays.toString(calculatedRookMagics));
 	    System.out.println("___Bishops:_____");
 	    System.out.println(Arrays.toString(calculatedBishopMagics));

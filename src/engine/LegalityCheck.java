@@ -52,7 +52,6 @@ public class LegalityCheck {
 				}
 				
 				kingBlockerMap[square][directionIndex] = newMask;
-				if (newMask == 0) System.out.println(directionIndex);
 			}
 		}
 		
