@@ -40,9 +40,9 @@ public class MoveGen {
 				int doubleMove = move; // from
 				doubleMove |= (originBoardKey << 12); // originBoard
 				doubleMove |= (targetBoardKey << 16); // captured
-				doubleMove |= (0000 << 24); // isPromotion
-				doubleMove |= (0000 << 28); // isCastle
-				doubleMove |= (colorKey << 31); // isEnPassant
+				
+				doubleMove |= (1L << 30); // Is double pawn move
+				doubleMove |= (colorKey << 31); // Color Key
 				
 				
 				pendingDouble = doubleMove;
@@ -50,8 +50,7 @@ public class MoveGen {
 				int pushMove = move; // from
 				pushMove |= (originBoardKey << 12);
 				pushMove |= (targetBoardKey << 16);
-				pushMove |= (0000 << 24);
-				pushMove |= (0000 << 28);
+
 				pushMove |= (colorKey << 31);
 				
 				interEmpty = true;
@@ -68,14 +67,15 @@ public class MoveGen {
 			byte to = (byte)((move >>> 6) & 0x3F);
 			byte originBoardKey = Position.nameKeyConversion.get(originBoard);
 			long opponentBits = (color == "white") ? Position.blackOccupied : Position.whiteOccupied;
+			boolean isEnPassant = (to == Position.enPassantTarget);
 			
-			if ((opponentBits & (1L << to)) != 0) {
+			if ((opponentBits & (1L << to)) != 0 || isEnPassant) {
 				byte targetBoardKey = Position.engineLookup[to];
 	
 				move |= (originBoardKey << 12);
 				move |= (targetBoardKey << 16);
-				move |= (0000 << 24);
-				move |= (0000 << 28);
+				
+				move |= ((isEnPassant ? 1 : 0) << 29);
 				move |= (colorKey << 31);
 				
 				moves[moveCount++] = move;
@@ -94,18 +94,19 @@ public class MoveGen {
 		
 		int[] moves = new int[precomputedMoves.length];
 		int moveCount = 0;
+		long myOccupied = (color == "white") ? Position.whiteOccupied : Position.blackOccupied;
 		
 		for (int move : precomputedMoves) {
 			byte from = (byte)((move) & 0x3F);
 			byte to = (byte)((move >>> 6) & 0x3F);
-			
 			byte captureKey = Position.engineLookup[to];
+			
+			if ((myOccupied & (1L << to)) != 0) continue;
 			
 			int mainMove = move;
 			mainMove |= (originBoardKey << 12);
 			mainMove |= (captureKey << 16);
-			mainMove |= (0000 << 24);
-			mainMove |= (0000 << 28);
+	
 			mainMove |= (colorKey << 31);
 			
 			moves[moveCount++] = mainMove;
@@ -121,23 +122,62 @@ public class MoveGen {
 		String originBoard = (color == "white") ? "whiteKing" : "blackKing";
 		byte originBoardKey = (byte)Position.nameKeyConversion.get(originBoard);
 		
-		int[] moves = new int[precomputedMoves.length];
+		int[] moves = new int[precomputedMoves.length + 2];
 		int moveCount = 0;
+		long myOccupied = (color == "white") ? Position.whiteOccupied : Position.blackOccupied;
+		
+		byte castleShortIndex = (byte)((color == "white") ? 0 : 2);
+		byte castleLongIndex = (byte)(castleShortIndex + 1);
 		
 		for (int move : precomputedMoves) {
 			byte from = (byte)((move) & 0x3F);
 			byte to = (byte)((move >>> 6) & 0x3F);
-			
 			byte captureKey = Position.engineLookup[to];
+			
+			if ((myOccupied & (1L << to)) != 0) continue;
+			System.out.println(originBoardKey + ": " + originBoard);
 			
 			int mainMove = move;
 			mainMove |= (originBoardKey << 12);
 			mainMove |= (captureKey << 16);
-			mainMove |= (0000 << 24);
-			mainMove |= (0000 << 28);
 			mainMove |= (colorKey << 31);
 			
 			moves[moveCount++] = mainMove;
+		}
+		
+		long myRooks = (color == "white") ? Position.bitboards[4] : Position.bitboards[10];
+		if ((row == 0 || row == 7) && (col == 4)) {
+			if (Position.castlingRights[castleShortIndex]) {
+				byte expectedRookLocation = (byte)(square + 3);
+				boolean rookAtLocation = ((myRooks & (1L << expectedRookLocation)) != 0);
+				System.out.println("Short index: " + castleShortIndex);
+				if (Position.engineLookup[square + 1] == 0 && Position.engineLookup[square + 2] == 0 && rookAtLocation) {
+					int newMove = square;
+					newMove |= ((square + 2) << 6);
+					newMove |= (originBoardKey << 12);
+					newMove |= (castleShortIndex << 20); // Castling type
+					newMove |= (1 << 28); // Castling indicator
+					
+					newMove |= (colorKey << 31);
+					moves[moveCount++] = newMove;
+				}
+			} 
+			
+			if (Position.castlingRights[castleLongIndex]) {
+				byte expectedRookLocation = (byte)(square - 4);
+				boolean rookAtLocation = ((myRooks & (1L << expectedRookLocation)) != 0);
+				
+				if (Position.engineLookup[square - 1] == 0 && Position.engineLookup[square - 2] == 0 && Position.engineLookup[square - 3] == 0 && rookAtLocation) {
+					int newMove = square;
+					newMove |= ((square - 2) << 6);
+					newMove |= (originBoardKey << 12);
+					newMove |= (castleLongIndex << 20); // Castling Type
+					newMove |= (1 << 28); // Castling indicator
+					
+					newMove |= (colorKey << 31);
+					moves[moveCount++] = newMove;
+				}
+			}
 		}
 		
 		return Arrays.copyOf(moves, moveCount);
@@ -243,3 +283,5 @@ public class MoveGen {
 		return Arrays.copyOf(bothMoves, moveCount);
 	}
 }
+
+

@@ -140,24 +140,23 @@ public class PrecompMoves {
 			    {-1, -1}, {-1, 1}, {1, -1}, {1, 1}	
 			};
 			
-			ArrayList<Integer> moves = new ArrayList<Integer>();
+			int[] moves = new int[8];
+			int moveCount = 0;
 			
 			for (byte[] vector : vectors) {
 				byte targetRow = (byte)(row + vector[0]);
 				byte targetCol = (byte)(col + vector[1]);
 				byte targetSquare = (byte)(targetRow * 8 + targetCol);
 				
+				if (!withinBounds(targetRow, targetCol)) continue;
+				
 				int move = square;
 				move |= (targetSquare << 6);
-				moves.add(move);
+				
+				moves[moveCount++] = move;
 			}
 			
-			int[] primitiveMoves = new int[moves.size()];
-			for (int i = 0; i < moves.size(); i++) {
-				primitiveMoves[i] = moves.get(i);
-			}
-			
-			kingMoves[square] = primitiveMoves;
+			kingMoves[square] = Arrays.copyOf(moves, moveCount);
 		}
 		
 		precomputedMoves.put("whitePawnPushes", whitePawnPushes);
@@ -169,4 +168,3 @@ public class PrecompMoves {
 		precomputedMoves.put("kingMoves", kingMoves);
 	}
 }
-

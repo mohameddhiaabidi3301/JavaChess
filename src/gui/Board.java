@@ -2,14 +2,10 @@ package gui;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.Point;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.Color;
-import java.awt.Component;
-import java.util.HashMap;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -33,14 +29,21 @@ public class Board {
 	static private final Color lightColor = Color.white;
 	static private final Color darkColor = new Color(179, 142, 78);
 	
-	static record ClickData(int row, int col, int square, String pieceName, byte pieceId, String pieceColor, JPanel component, int[] legalMoves, int pieceUIxOrigin, int pieceUIyOrigin) {};
+	static record ClickData(int row, int col, int square, String pieceName, byte pieceId, String pieceColor, byte colorKey, JPanel component, int[] legalMoves, int pieceUIxOrigin, int pieceUIyOrigin) {};
+	
+	private static int waitingForPromotion = -1;
+	private static JPanel promotionComponent;
 	
 	private static ClickData activeDrag = null;
 	private static ClickData getDataAtPos(int clickX, int clickY) {
 		int row = 7 - (clickY / tileSize);
 		int col = (clickX / tileSize);
 		int square = row * 8 + col;
-		String color = (Position.engineLookup[square] < 6) ? "white" : "black";
+		
+		if (row < 0 || row > 7) return null;
+		if (col < 0 || col > 7) return null;
+		
+		String color = (Position.engineLookup[square] <= 6) ? "white" : "black";
 		
 		int[] moves = new int[0];
 		if (Position.engineLookup[square] != 0) {
@@ -48,11 +51,10 @@ public class Board {
 		}
 		
 		JPanel component = (JPanel)piecePanel.getComponentAt(clickX, clickY);
-		
-		//DebugRender.renderMoveArray(moves);
+		byte colorKey = (byte)((color == "white") ? 0 : 1);
 		
 		//System.out.println("Clicked at (" + clickX + ", " + clickY + ") [" + row + ", " + col + ", " + square + "], " + Position.lookupBoard.get(square));
-		return new ClickData(row, col, square, Position.guilookupBoard[square], Position.engineLookup[square], color, component, moves, component.getX(), component.getY());
+		return new ClickData(row, col, square, Position.guilookupBoard[square], Position.engineLookup[square], color, colorKey, component, moves, component.getX(), component.getY());
 	}
 	
 	private static void renderPreviews(int[] moveArray) {
@@ -92,7 +94,18 @@ public class Board {
 		piecePanel.revalidate();
 		piecePanel.repaint();
 	}
-
+	
+	public static void promotionRecieved(String selection) {
+		byte selectionKey = Position.nameKeyConversion.get(selection);
+		
+		waitingForPromotion |= (selectionKey << 22);
+		Position.makeMove(waitingForPromotion);
+		renderAllPieces();
+		
+		layerPane.remove(promotionComponent);
+		
+		waitingForPromotion = -1;
+	}
 	
 	public static void init() {
 		Dimension boardSize = new Dimension(tileSize * 8, tileSize * 8);
@@ -137,17 +150,6 @@ public class Board {
 		previewPanel.setOpaque(false);
 		
 		board.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		layerPane.addComponentListener(new ComponentAdapter() {
-			@Override
-			public void componentResized(ComponentEvent e) {
-				JPanel panel1 = (JPanel)layerPane.getComponent(0);
-				JPanel panel2 = (JPanel)layerPane.getComponent(1);
-				
-				panel1.setSize(layerPane.getWidth(), layerPane.getHeight());
-				panel2.setSize(layerPane.getWidth(), layerPane.getHeight());
-			}
-		});
-		
 		layerPane.addMouseListener(new MouseListener() {
 			
 			@Override
@@ -157,8 +159,10 @@ public class Board {
 				int clickY = converted.y;
 				
 				ClickData data = getDataAtPos(clickX, clickY);
+				if (waitingForPromotion != -1) return;
+				if (data.colorKey != Position.sideToMove) return;
 				
-				if (!data.pieceName.isEmpty()) {
+				if (data != null && !data.pieceName.isEmpty()) {
 					activeDrag = data;
 					renderPreviews(data.legalMoves);
 				}
@@ -172,25 +176,43 @@ public class Board {
 				ClickData releaseData = getDataAtPos(releaseX, releaseY);
 				
 				boolean foundMatch = false;
-				if (activeDrag != null) {
+				if (releaseData != null && activeDrag != null) {
 					int row = releaseData.row;
 					int col = releaseData.col;
 					int square = (row * 8 + col);
 					
 					for (int move : activeDrag.legalMoves) {
 						byte to = (byte)((move >>> 6) & 0x3F);
+						byte pieceId = activeDrag.pieceId;
+						int promotionRow = (activeDrag.pieceColor == "white") ? 7 : 0;
+						boolean isPawn = pieceId == 1 || pieceId == 7;
+						boolean isPromotion = (to / 8 == promotionRow && isPawn);
 						
-						System.out.println(to + " vs released on square " + square);
 						if (square == to) {
-							JPanel activeComponent = (JPanel)activeDrag.component;
-							activeComponent.setBounds(col * tileSize, (7 - row) * tileSize, tileSize, tileSize);
-							
-							foundMatch = true;
-							
-							Position.makeMove(move);
-							renderAllPieces();
-							
-							break;
+							if (!isPromotion) {
+								JPanel activeComponent = (JPanel)activeDrag.component;
+								activeComponent.setBounds(col * tileSize, (7 - row) * tileSize, tileSize, tileSize);
+								
+								foundMatch = true;
+								
+								Position.makeMove(move);
+								renderAllPieces();
+								
+								break;
+							} else {
+								foundMatch = true;
+								waitingForPromotion = move;
+								
+								int yOffset = (activeDrag.pieceColor == "white") ? 0 : -180;
+								
+								JPanel newPromotionUI = new PromotionHandler(tileSize, activeDrag.pieceColor);
+								newPromotionUI.setBounds((to % 8) * tileSize, (7 - (to / 8)) * tileSize + yOffset, tileSize, tileSize * 4);
+								layerPane.add(newPromotionUI, JLayeredPane.POPUP_LAYER);
+								promotionComponent = newPromotionUI;
+								
+								JPanel activeComponent = (JPanel)activeDrag.component;
+								activeComponent.setBounds(col * tileSize, (7 - row) * tileSize, tileSize, tileSize);
+							}
 						}
 					}
 				}
@@ -198,7 +220,7 @@ public class Board {
 				if (!foundMatch && activeDrag != null) {
 					int pieceUIxOrigin = activeDrag.pieceUIxOrigin;
 					int pieceUIyOrigin = activeDrag.pieceUIyOrigin;
-					
+		
 					JPanel activeComponent = (JPanel)activeDrag.component;
 					activeComponent.setBounds(pieceUIxOrigin, pieceUIyOrigin, tileSize, tileSize);
 				}

@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
+import debug.DebugRender;
+
 public class Position {
 	// FOR GUI ONLY, NOT FOR ENGINE
 	public static String[] guilookupBoard = {
@@ -36,6 +38,7 @@ public class Position {
 	    (1L << 0) | (1L << 7),                   // 4 - whiteRooks
 	    (1L << 3),                               // 5 - whiteQueens
 	    (1L << 4),                               // 6 - whiteKing
+	    
 	    0xFFL << 48,                             // 7 - blackPawns
 	    (1L << 57) | (1L << 62),                 // 8 - blackKnights
 	    (1L << 58) | (1L << 61),                 // 9 - blackBishops
@@ -50,25 +53,15 @@ public class Position {
 	
 	public static byte whiteKingPos = 4;
 	public static byte blackKingPos = 60;
+	public static byte sideToMove = 0;
 	
-	public static Set<String> whiteNames = new HashSet<String>();
-	public static Set<String> blackNames = new HashSet<String>();
-	static {
-		whiteNames.add("whitePawns"); // 0
-		whiteNames.add("whiteKnights"); // 1
-		whiteNames.add("whiteBishops"); // 2
-		whiteNames.add("whiteRooks"); // 3
-		whiteNames.add("whiteQueens"); // 4
-		whiteNames.add("whiteKing"); // 5
-		
-		blackNames.add("blackPawns"); // 6
-		blackNames.add("blackKnights"); // 7
-		blackNames.add("blackBishops"); // 8
-		blackNames.add("blackRooks"); // 9
-		blackNames.add("blackQueens"); // 10
-		blackNames.add("blackKing"); // 11
-	}
-	
+	public static byte enPassantTarget = -1;
+	public static boolean[] castlingRights = {
+		true, // white castle short
+		true, // white castle long
+		true, // black castle short
+		true // black castle long
+	};
 	
 	public static String[] allNames = {"whitePawns", "whiteKnights", "whiteBishops", "whiteRooks", "whiteQueens", "whiteKing", "blackPawns", "blackKnights", "blackBishops", "blackRooks", "blackQueens", "blackKing"};
 	
@@ -91,9 +84,10 @@ public class Position {
 	}
 	
 	public static void initOccupancy() {
-		for (int i = 0; i < 12; i++) {
+		for (int i = 0; i < 13; i++) {
 			long board = bitboards[i];
-			if (i < 6) {
+			
+			if (i <= 6) {
 				whiteOccupied |= board;
 			} else {
 				blackOccupied |= board;
@@ -108,10 +102,16 @@ public class Position {
 		byte to = (byte)((move >>> 6) & 0x3F);
 		byte originKey = (byte)((move >>> 12) & 0xF);
 		byte targetKey = (byte)((move >>> 16) & 0xF);
+		byte promotionKey = (byte)((move >>> 22) & 0xF);
+		
 		byte color = (byte)((move >>> 31) & 1L);
 		boolean isCapture = targetKey != 0;
-		
-		System.out.println(String.format("Move, From: %d, To: %d, OriginKey %d, targetKey: %d, Color: %d", from, to, originKey, targetKey, color));
+		boolean isDoublePawn = ((byte)((move >>> 30) & 1L)) != 0;
+		boolean isEnPassant = ((byte)(move >>> 29) & 1L) != 0;
+		boolean isCastle = ((byte)(move >>> 28) & 1L) != 0;
+		byte castleType = (byte)((move >>> 20) & 3L);
+
+		System.out.println(String.format("Move, From: %d, To: %d, OriginKey %d, targetKey: %d, Double Pawn: %b, IsEnPassant: %b, isCastle: %b, castleType: %d Color: %d", from, to, originKey, targetKey, isDoublePawn, isEnPassant, isCastle, castleType, color));
 		
 		// White: 0, Black: 1
 		if (color == 0) {
@@ -130,8 +130,8 @@ public class Position {
 		allOccupied |= (1L << to);
 		
 		// Specific Origin Board
-		bitboards[originKey] = bitboards[originKey - 1] & ~(1L << from);
-		bitboards[originKey] = bitboards[originKey - 1] |= (1L << to);
+		bitboards[originKey] = bitboards[originKey] & ~(1L << from);
+		bitboards[originKey] = bitboards[originKey] |= (1L << to);
 		
 		// Lookup Boards
 		guilookupBoard[from] = "";
@@ -139,5 +139,91 @@ public class Position {
 		
 		engineLookup[from] = 0;
 		engineLookup[to] = (byte)(originKey);
+		
+		// Specials
+		if (isDoublePawn) {
+			byte moveDirection = (byte)((color == 0) ? 8 : -8);
+			enPassantTarget = (byte)(to - moveDirection);
+		} else {enPassantTarget = -1;}
+		
+		if (isEnPassant) {
+			byte moveDirection = (byte)((color == 0) ? 8 : -8);
+			byte captureTarget = (byte)(to - moveDirection);
+			byte opponentSPBoard = engineLookup[captureTarget];
+			
+			bitboards[opponentSPBoard] &= ~((1L << captureTarget));
+			if (color == 0) {
+				blackOccupied &= ~((1L << captureTarget));
+			} else {whiteOccupied &= ~((1L << captureTarget));}
+			
+			allOccupied &= ~((1L << captureTarget));
+			
+			engineLookup[captureTarget] = 0;
+			guilookupBoard[captureTarget] = "";
+		}
+		
+		byte ourRookIndex = (byte)((color == 0) ? 4 : 10);
+		String rookName = (color == 0) ? "whiteRooks" : "blackRooks";
+		if (isCastle) {
+			boolean isShortCastle = (castleType % 2 == 0);
+			
+			if (isShortCastle) {
+				bitboards[ourRookIndex] &= ~(1L << from + 3);
+				bitboards[ourRookIndex] |= (1L << from + 1);
+				
+				if (color == 0) {
+					whiteOccupied &= ~(1L << from + 3);
+					whiteOccupied |= (1L << from + 1);
+				} else {
+					blackOccupied &= ~(1L << from + 3);
+					blackOccupied |= (1L << from + 1);
+				}
+				
+				allOccupied |= (1L << from + 1);
+				allOccupied &= ~(1L << from + 3);
+				
+				engineLookup[from + 3] = 0;
+				engineLookup[from + 1] = ourRookIndex;
+				
+				guilookupBoard[from + 3] = "";
+				guilookupBoard[from + 1] = rookName;
+			} else {
+				bitboards[ourRookIndex] &= ~(1L << from - 4);
+				bitboards[ourRookIndex] |= (1L << from - 1);
+				
+				if (color == 0) {
+					whiteOccupied &= ~(1L << from - 4);
+					whiteOccupied |= (1L << from - 1);
+				} else {
+					blackOccupied &= ~(1L << from - 4);
+					blackOccupied |= (1L << from - 1);
+				}
+				
+				allOccupied |= (1L << from - 1);
+				allOccupied &= ~(1L << from - 4);
+				
+				engineLookup[from - 4] = 0;
+				engineLookup[from - 1] = ourRookIndex;
+				
+				guilookupBoard[from - 4] = "";
+				guilookupBoard[from - 1] = rookName;
+			}
+			
+			castlingRights[castleType] = false;
+		}
+		
+		if (promotionKey != 0) {
+			bitboards[originKey] &= ~(1L << to);
+			bitboards[promotionKey] |= (1L << to);
+			
+			engineLookup[to] = promotionKey;
+			guilookupBoard[to] = allNames[promotionKey - 1];
+		}
+		
+		// Zobrist
+		ZobristHash.updateZobrist(move);
+		
+		// Side to Move
+		sideToMove = (byte)(1 - sideToMove);
 	}
 }
