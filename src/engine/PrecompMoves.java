@@ -7,12 +7,6 @@ import java.util.Arrays;
 public class PrecompMoves {
 	public static HashMap<String, int[][]> precomputedMoves = new HashMap<String, int[][]>();
 	
-	private static boolean withinBounds(byte targetSquare) {
-		if (targetSquare < 0 || targetSquare > 63) return false;
-		
-		return true;
-	}
-	
 	private static boolean withinBounds(byte row, byte col) {
 		if (row < 0 || row > 7) return false;
 		if (col < 0 || col > 7) return false;
@@ -61,7 +55,7 @@ public class PrecompMoves {
 					moves.add(move);
 				}
 				
-				if (withinBounds((byte)(square + (moveDir * 7)))) {
+				if (withinBounds((byte)(row + moveDir), (byte)(col - moveDir))) {
 					byte targetSquare = (byte)(square + (moveDir * 7));
 					int move = square;
 					move |= (targetSquare << 6);
@@ -69,7 +63,7 @@ public class PrecompMoves {
 					captures.add(move);
 				}
 				
-				if (withinBounds((byte)(square + (moveDir * 9)))) {
+				if (withinBounds((byte)(row + moveDir), (byte)(col + moveDir))) {
 					byte targetSquare = (byte)(square + (moveDir * 9));
 					int move = square;
 					move |= (targetSquare << 6);

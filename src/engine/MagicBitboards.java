@@ -1,5 +1,6 @@
 package engine;
 
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -9,15 +10,16 @@ import java.io.*;
 import java.util.*;
 import debug.DebugRender;
 
+
 public class MagicBitboards {
 	public static long[] rookMagics = {
 	    0x8A80104000800020L, 0x0084020100804000L, 0x00800A1000048020L, 0xC4100020B1000200L,
 	    0x0400440002080420L, 0x0A8004002A801200L, 0x0840140C80400100L, 0x010000820C412300L,
-	    0x0010800212400820L, 0x0008050190002800L, 0x56003046012181L, 0x0041080080201001L,
-	    0x020820040800890AL, 0x0010800200008440L, 0x6cac00287e2c1017L, 0x95e600054e14058fL,
-	    0x8ee5e88003854007L, 0x1004402800084000L, 0x00041404C0140004L, 0x5000400908001400L,
+	    0x0010800212400820L, 0x0008050190002800L, 0x56003046012181L, 0xe4910038d0010060L,
+	    0x67b005018002d00L, 0x38a0010181a00bcL, 0x6cac00287e2c1017L, 0x95e600054e14058fL,
+	    0x8ee5e88003854007L, 0xfa8bc04005201009L, 0xaa78420014820022L, 0x382af20008420060L,
 	    0x517e8e0020aa0046L, 0x00830A0101000500L, 0x75ad40050010802L, 0xde16e2000ac5941bL,
-	    0x5e5c00680028e63L, 0x0440244008603000L, 0xa0042002183d4L, 0xe831ea0200207041L,
+	    0x5e5c00680028e63L, 0xbfc270500400280L, 0x6b9600c2002186f0L, 0xe831ea0200207041L,
 	    0x152a22860010a600L, 0xc2d6007200344810L, 0x2ec7f67c00074810L, 0xf225770e000a8b5cL,
 	    0x6a08c0028880062bL, 0x8fb22000c4c01003L, 0x16752002c1003303L, 0xcb4790163001001L,
 	    0x1c95003411001801L, 0x240400A000A04080L, 0xbae85a0d24002830L, 0xd9c849095e000c84L,
@@ -28,6 +30,7 @@ public class MagicBitboards {
 	    0xda91c0a082065302L, 0x0440041482204101L, 0x97b500600052c13bL, 0X71bf266a0020404eL,
 	    0xc7760028206d103aL, 0xbbf20048100c4126L, 0x148a3b101627980cL, 0xa4b1440528c3830aL
 	};
+
 	
 	public static long[] bishopMagics = {
 	    0xf15f9fe3eee599e0L, 0xbd18700c82055265L, 0xf6901c1589e19668L, 0xa987df5edf026612L,
@@ -210,8 +213,8 @@ public class MagicBitboards {
 			int col = square % 8;
 			
 			long blockerMask = genRookBlockerMask(row, col);
-			ArrayList<Integer> blockerLocations = getSetBits(blockerMask);
-			int numBlockers = blockerLocations.size();
+			int[] blockerLocations = getSetBits(blockerMask);
+			int numBlockers = blockerLocations.length;
 			int numPermutations = 1 << numBlockers;
 			int shift = 64 - numBlockers;
 			long magic = rookMagics[square];
@@ -221,9 +224,10 @@ public class MagicBitboards {
 			for (int j = 0; j < numPermutations; j++) {
 				long permutation = 0L;
 
+
 				for (int k = 0; k < numBlockers; k++) {
 					if (((j >> k) & 1L) != 0) {
-						permutation |= (1L << blockerLocations.get(k));
+						permutation |= (1L << blockerLocations[k]);
 					}
 				}
 				
@@ -252,8 +256,8 @@ public class MagicBitboards {
 			int col = square % 8;
 			
 			long blockerMask = genBishopBlockerMask(row, col);
-			ArrayList<Integer> blockerLocations = getSetBits(blockerMask);
-			int numBlockers = blockerLocations.size();
+			int[] blockerLocations = getSetBits(blockerMask);
+			int numBlockers = blockerLocations.length;
 			int numPermutations = 1 << numBlockers;
 			int shift = 64 - numBlockers;
 			long magic = bishopMagics[square];
@@ -263,9 +267,10 @@ public class MagicBitboards {
 			for (int j = 0; j < numPermutations; j++) {
 				long permutation = 0L;
 
+
 				for (int k = 0; k < numBlockers; k++) {
 					if (((j >> k) & 1L) != 0) {
-						permutation |= (1L << blockerLocations.get(k));
+						permutation |= (1L << blockerLocations[k]);
 					}
 				}
 				
@@ -305,13 +310,15 @@ public class MagicBitboards {
 	            int row = (int)Math.floor(square / 8);
 	            int col = square % 8;
 
+
 	            for (int t = 0; t <= 0; t++) {
 	                boolean isRook = (t == 0) ? true : false;
 	                long blockerMask = (isRook) ? genRookBlockerMask(row, col) : genBishopBlockerMask(row, col);
-	                ArrayList<Integer> blockerLocations = getSetBits(blockerMask);
-	                int numBlockers = blockerLocations.size();
+	                int[] blockerLocations = getSetBits(blockerMask);
+	                int numBlockers = blockerLocations.length;
 	                int numPermutations = 1 << numBlockers;
 	                int shift = 64 - numBlockers;
+
 
 	                int bestAttempt = -1;
 	                long startTime = System.nanoTime();
@@ -321,17 +328,21 @@ public class MagicBitboards {
 	                    Set<Integer> foundIndexes = new HashSet<Integer>();
 	                    boolean success = true;
 
+
 	                    for (int j = 0; j < numPermutations; j++) {
 	                        long permutation = 0L;
 
+
 	                        for (int k = 0; k < numBlockers; k++) {
 	                            if (((j >> k) & 1L) != 0) {
-	                                permutation |= (1L << blockerLocations.get(k));
+	                                permutation |= (1L << blockerLocations[k]);
 	                            }
 	                        }
 
+
 	                        long product = permutation * magic;
 	                        int hashIndex = (int)((product >>> shift));
+
 
 	                        if (foundIndexes.contains(hashIndex)) {
 	                            success = false;
@@ -343,6 +354,7 @@ public class MagicBitboards {
 	                            foundIndexes.add(hashIndex);
 	                        }
 	                    }
+
 
 	                    if (success) {
 	                        long endTime = System.nanoTime();
@@ -366,6 +378,7 @@ public class MagicBitboards {
 	                        }
 	                        break;
 	                    }
+
 
 	                    if (attempt % 10000000 == 0) {
 	                        String progress = String.format("[%d][%s] %d / %d, Attempt %d", 
@@ -411,15 +424,54 @@ public class MagicBitboards {
 	    System.out.println(Arrays.toString(calculatedBishopMagics));
 	}
 	
-	public static ArrayList<Integer> getSetBits(long bits) {
-		ArrayList<Integer> setBits = new ArrayList<Integer>();
+	public static int[] getSetBits(long bits) {
+		int[] setBits = new int[64];
+		int amount = 0;
 		
 		while (bits != 0) {
 			int idx = Long.numberOfTrailingZeros(bits);
-			setBits.add(idx);
+			setBits[amount++] = idx;
 			bits &= bits - 1;
 		}
 		
-		return setBits;
+		return Arrays.copyOf(setBits, amount);
+	}
+	
+	public static long lineBB(byte squareStart, byte squareEnd) {
+		long bitboard = 0L;
+		
+		byte startRow = (byte)(squareStart / 8);
+		byte startCol = (byte)(squareStart % 8);
+		
+		byte endRow = (byte)(squareEnd / 8);
+		byte endCol = (byte)(squareEnd % 8);
+		
+		int dx = (int)Math.signum(endRow - startRow);
+		int dy = (int)Math.signum(endCol - startCol);
+		int curRow = startRow + dx;
+		int curCol = startCol + dy;
+		
+		System.out.println(String.format("%d, %d, to %d, %d: [%d, %d]", startRow, startCol, endRow, endCol, dx, dy));
+		
+		if (startRow == endRow) {
+			while (curCol != endCol) {
+				bitboard |= (1L << (curRow * 8 + curCol));
+				curCol += dy;
+			}
+		} else if (startCol == endCol) {
+			while (curRow != endRow) {
+				bitboard |= (1L << (curRow * 8 + curCol));
+				curRow += dx;
+			}
+		} else {
+			while (curRow != endRow && curCol != endCol) {
+				bitboard |= (1L << (curRow * 8 + curCol));
+				
+				curRow += dx;
+				curCol += dy;
+			}
+		}
+		
+		return bitboard;
 	}
 }

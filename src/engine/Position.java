@@ -1,11 +1,11 @@
 package engine;
 import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-
+import java.util.stream.IntStream;
 import debug.DebugRender;
-
 public class Position {
 	// FOR GUI ONLY, NOT FOR ENGINE
 	public static String[] guilookupBoard = {
@@ -29,7 +29,6 @@ public class Position {
 	    7, 7, 7, 7, 7, 7, 7, 7,     // black pawns
 	    10, 8, 9, 11, 12, 9, 8, 10  // black back rank
 	};
-
 	public static long[] bitboards = {
 	    0L,                                      // 0 - no piece
 	    0xFFL << 8,                              // 1 - whitePawns
@@ -38,13 +37,21 @@ public class Position {
 	    (1L << 0) | (1L << 7),                   // 4 - whiteRooks
 	    (1L << 3),                               // 5 - whiteQueens
 	    (1L << 4),                               // 6 - whiteKing
-	    
+	   
 	    0xFFL << 48,                             // 7 - blackPawns
 	    (1L << 57) | (1L << 62),                 // 8 - blackKnights
 	    (1L << 58) | (1L << 61),                 // 9 - blackBishops
 	    (1L << 56) | (1L << 63),                 // 10 - blackRooks
 	    (1L << 59),                              // 11 - blackQueens
 	    (1L << 60)                               // 12 - blackKing
+	};
+	
+	public static long[] cardinalThreats = {
+		0L, // whiteRookSliders - rooks | queens
+		0L, // whiteBishopSliders - bishops | queens
+		
+		0L, // blackRookSliders - rooks | queens
+		0L, // blackBishopSliders - bishops | queens
 	};
 	
 	public static long whiteOccupied = 0L;
@@ -95,7 +102,59 @@ public class Position {
 		}
 		
 		allOccupied = whiteOccupied | blackOccupied;
+		
+		cardinalThreats[0] = bitboards[4] | bitboards[5];
+		cardinalThreats[1] = bitboards[3] | bitboards[5];
+		
+		cardinalThreats[2] = bitboards[10] | bitboards[11];
+		cardinalThreats[3] = bitboards[9] | bitboards[11];
 	}
+	
+	public static int[][] getAttacks(byte color, boolean isInitialization) {
+		String colorParam = (color == 0) ? "white" : "black";
+		byte rangeStart = (byte)((color == 0) ? 1 : 7);
+		byte rangeMax = (byte)((color == 0) ? 6 : 12);
+		int[][] attackBoard = new int[64][];
+		byte myKingPos = (byte)(color == 0 ? blackKingPos : whiteKingPos);
+		
+		for (byte square = 0; square < 64; square++) {
+			byte row = (byte)(square / 8);
+			byte col = (byte)(square % 8);
+			byte pieceType = engineLookup[square];
+			
+			if (pieceType >= rangeStart && pieceType <= rangeMax) {
+				int[] moves = null;
+				if (pieceType == 1 || pieceType == 7) {
+					moves = PrecompMoves.precomputedMoves.get(colorParam + "PawnCaptures")[square];
+				} else {
+					allOccupied &= ~(1L << myKingPos);
+					moves = isInitialization ? 
+						KeyToPseudoMoves.pseudoMap[pieceType - 1].apply(row, col, colorParam) : 
+						KeyToLegalMoves.pseudoMap[pieceType - 1].apply(row, col, colorParam);
+					
+					allOccupied |= (1L << myKingPos);
+				}
+				
+				for (int move : moves) {
+					byte from = (byte)(move & 0x3F);
+					byte to = (byte)((move >>> 6) & 0x3F);
+					
+					if (attackBoard[to] == null) attackBoard[to] = new int[0];
+					int[] newArray = new int[attackBoard[to].length + 1];
+					
+					System.arraycopy(attackBoard[to], 0, newArray, 0, attackBoard[to].length);
+					newArray[newArray.length - 1] = from;
+					
+					attackBoard[to] = newArray;
+				}
+			}
+		}
+		
+		return attackBoard;
+	}
+	
+	public static int[][][] attacks = new int[2][][];
+	public static int[][] pins = new int[2][];
 	
 	public static void makeMove(int move) {
 		byte from = (byte)(move & 0x3F);
@@ -110,7 +169,6 @@ public class Position {
 		boolean isEnPassant = ((byte)(move >>> 29) & 1L) != 0;
 		boolean isCastle = ((byte)(move >>> 28) & 1L) != 0;
 		byte castleType = (byte)((move >>> 20) & 3L);
-
 		System.out.println(String.format("Move, From: %d, To: %d, OriginKey %d, targetKey: %d, Double Pawn: %b, IsEnPassant: %b, isCastle: %b, castleType: %d Color: %d", from, to, originKey, targetKey, isDoublePawn, isEnPassant, isCastle, castleType, color));
 		
 		// White: 0, Black: 1
@@ -118,12 +176,12 @@ public class Position {
 			whiteOccupied &= ~(1L << from);
 			whiteOccupied |= (1L << to);
 			
-			if (isCapture) blackOccupied &= ~(1L << to); 
+			if (isCapture) blackOccupied &= ~(1L << to);
 		} else {
 			blackOccupied &= ~(1L << from);
 			blackOccupied |= (1L << to);
 			
-			if (isCapture) whiteOccupied &= ~(1L << to); 
+			if (isCapture) whiteOccupied &= ~(1L << to);
 		}
 		
 		allOccupied &= ~(1L << from);
@@ -139,6 +197,21 @@ public class Position {
 		
 		engineLookup[from] = 0;
 		engineLookup[to] = (byte)(originKey);
+		
+		// King Move
+		if (originKey == 6 || originKey == 12) {
+			if (color == 0) {
+				whiteKingPos = to;
+				
+				castlingRights[0] = false;
+				castlingRights[1] = false;
+			} else {
+				blackKingPos = to;
+				
+				castlingRights[2] = false;
+				castlingRights[3] = false;
+			}
+		}
 		
 		// Specials
 		if (isDoublePawn) {
@@ -225,5 +298,17 @@ public class Position {
 		
 		// Side to Move
 		sideToMove = (byte)(1 - sideToMove);
+		
+		// Cardinal Updating
+		cardinalThreats[0] = bitboards[4] | bitboards[5];
+		cardinalThreats[1] = bitboards[3] | bitboards[5];
+		
+		cardinalThreats[2] = bitboards[10] | bitboards[11];
+		cardinalThreats[3] = bitboards[9] | bitboards[11];
+		
+		attacks[0] = Position.getAttacks((byte)0, false);
+		attacks[1] = Position.getAttacks((byte)1, false);
+		pins[0] = LegalityCheck.getPinnedPieces((byte)0);
+		pins[1] = LegalityCheck.getPinnedPieces((byte)1);
 	}
 }

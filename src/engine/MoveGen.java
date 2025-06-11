@@ -1,11 +1,8 @@
 package engine;
 import java.util.HashMap;
-
 import debug.DebugRender;
-
 import java.util.ArrayList;
 import java.util.Arrays;
-
 public class MoveGen {
 	public static int[] pseudoPawns(byte row, byte col, String color) {
 		byte colorKey = (byte)(color == "white" ? 0 : 1);
@@ -50,7 +47,6 @@ public class MoveGen {
 				int pushMove = move; // from
 				pushMove |= (originBoardKey << 12);
 				pushMove |= (targetBoardKey << 16);
-
 				pushMove |= (colorKey << 31);
 				
 				interEmpty = true;
@@ -135,7 +131,6 @@ public class MoveGen {
 			byte captureKey = Position.engineLookup[to];
 			
 			if ((myOccupied & (1L << to)) != 0) continue;
-			System.out.println(originBoardKey + ": " + originBoard);
 			
 			int mainMove = move;
 			mainMove |= (originBoardKey << 12);
@@ -150,7 +145,7 @@ public class MoveGen {
 			if (Position.castlingRights[castleShortIndex]) {
 				byte expectedRookLocation = (byte)(square + 3);
 				boolean rookAtLocation = ((myRooks & (1L << expectedRookLocation)) != 0);
-				System.out.println("Short index: " + castleShortIndex);
+				
 				if (Position.engineLookup[square + 1] == 0 && Position.engineLookup[square + 2] == 0 && rookAtLocation) {
 					int newMove = square;
 					newMove |= ((square + 2) << 6);
@@ -161,7 +156,7 @@ public class MoveGen {
 					newMove |= (colorKey << 31);
 					moves[moveCount++] = newMove;
 				}
-			} 
+			}
 			
 			if (Position.castlingRights[castleLongIndex]) {
 				byte expectedRookLocation = (byte)(square - 4);
@@ -189,7 +184,7 @@ public class MoveGen {
 		long myOccupied = (color == "white") ? Position.whiteOccupied : Position.blackOccupied;
 		
 		long blockerMask = MagicBitboards.genBishopBlockerMask(row, col);
-		int blockerCount = (MagicBitboards.getSetBits(blockerMask)).size();
+		int blockerCount = (MagicBitboards.getSetBits(blockerMask)).length;
 		
 		long relevantBlockerMask = (blockerMask & Position.allOccupied);
 		
@@ -228,7 +223,7 @@ public class MoveGen {
 		long myOccupied = (color == "white") ? Position.whiteOccupied : Position.blackOccupied;
 		
 		long blockerMask = MagicBitboards.genRookBlockerMask(row, col);
-		int blockerCount = MagicBitboards.getSetBits(blockerMask).size();
+		int blockerCount = MagicBitboards.getSetBits(blockerMask).length;
 		
 		long relevantBlockerMask = blockerMask & Position.allOccupied;
 				
@@ -283,5 +278,4 @@ public class MoveGen {
 		return Arrays.copyOf(bothMoves, moveCount);
 	}
 }
-
 

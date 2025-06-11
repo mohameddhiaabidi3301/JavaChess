@@ -8,6 +8,7 @@ import engine.MagicBitboards;
 import java.util.Arrays;
 import debug.DebugRender;
 import gui.Board;
+
 public class Main {
 	private static void searchMagics() {
 		int[] range1 = {1, 2, 3, 4, 5, 6, 8, 9, 11, 12, 13, 17, 18, 19, 21, 25, 37, 43, 44};
@@ -16,7 +17,7 @@ public class Main {
 		
 		MagicSearchThread t1 = new MagicSearchThread(range1);   // 8 positions (0-7)
 		t1.start();
-		MagicSearchThread t2 = new MagicSearchThread(range2);  // 8 positions (9-16) 
+		MagicSearchThread t2 = new MagicSearchThread(range2);  // 8 positions (9-16)
 		t2.start();
 		MagicSearchThread t3 = new MagicSearchThread(range3); // 8 positions (17-24)
 		t3.start();
@@ -53,13 +54,23 @@ public class Main {
 		MagicBitboards.initBishopLookups();
 		MagicBitboards.initRookLookups();
 		
+		Position.attacks[0] = Position.getAttacks((byte)0, true);
+		Position.attacks[1] = Position.getAttacks((byte)1, true);
+		
+		Position.pins[0] = LegalityCheck.getPinnedPieces((byte)0);
+		Position.pins[1] = LegalityCheck.getPinnedPieces((byte)1);
+		
+		Position.attacks[0] = Position.getAttacks((byte)0, false);
+		Position.attacks[1] = Position.getAttacks((byte)1, false);
+		
+		
+		
 		//DebugRender.renderLong(MagicBitboards.genRookBlockerMask(5, 6));
 		//DebugRender.renderLong(MagicBitboards.genRookBlockerMask(5, 6) & Position.allOccupied);
 		//DebugRender.renderMoveArray(MagicBitboards.simulateRook(5, 6, Position.allOccupied & MagicBitboards.genRookBlockerMask(5, 6)));
 		//DebugRender.renderMoveArray(MoveGen.pseudoRooks((byte)5, (byte)6, "black"));
 		
-		searchMagics();
-		
-		//Board.init();
+		//searchMagics();
+		Board.init();
 	}
 }

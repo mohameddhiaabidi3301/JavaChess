@@ -2,20 +2,28 @@ package gui;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.Point;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.Color;
+import java.awt.Component;
+import java.util.HashMap;
+
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
+
 import debug.DebugRender;
 import engine.Position;
-import engine.keyToMoves;
+import engine.KeyToLegalMoves;
+
 
 import javax.swing.JLayeredPane;
+
 
 public class Board {
 	static public JFrame board = new JFrame("Board");
@@ -47,7 +55,7 @@ public class Board {
 		
 		int[] moves = new int[0];
 		if (Position.engineLookup[square] != 0) {
-			moves = keyToMoves.pseudoMap[Position.engineLookup[square] - 1].apply((byte)row, (byte)col, color);
+			moves = KeyToLegalMoves.pseudoMap[Position.engineLookup[square] - 1].apply((byte)row, (byte)col, color);
 		}
 		
 		JPanel component = (JPanel)piecePanel.getComponentAt(clickX, clickY);
@@ -79,17 +87,21 @@ public class Board {
 	private static void renderAllPieces() {
 		piecePanel.removeAll();
 
+
 		for (int square = 0; square < 64; square++) {
 			String piece = Position.guilookupBoard[square];
 			if (piece == null || piece.isEmpty()) continue;
 
+
 			int row = square / 8;
 			int col = square % 8;
+
 
 			JPanel newPiece = new Piece(piece, tileSize);
 			piecePanel.add(newPiece);
 			newPiece.setBounds(col * tileSize, (7 - row) * tileSize, tileSize, tileSize);
 		}
+
 
 		piecePanel.revalidate();
 		piecePanel.repaint();
@@ -133,6 +145,7 @@ public class Board {
 				Object pieceType = Position.guilookupBoard[63 - square];
 				JPanel newPiece = new Piece((String)pieceType, tileSize);
 
+
 				piecePanel.add(newPiece);
 				newPiece.setBounds(col * tileSize, row * tileSize, tileSize, tileSize);
 			}
@@ -167,6 +180,7 @@ public class Board {
 					renderPreviews(data.legalMoves);
 				}
 			}
+
 
 			@Override
 			public void mouseReleased(MouseEvent e) {
@@ -225,12 +239,15 @@ public class Board {
 					activeComponent.setBounds(pieceUIxOrigin, pieceUIyOrigin, tileSize, tileSize);
 				}
 
+
 				activeDrag = null;
 				clearPreviews();
 			}
 
+
 			@Override
 			public void mouseEntered(MouseEvent e) {}
+
 
 			@Override
 			public void mouseExited(MouseEvent e) {}
@@ -251,6 +268,7 @@ public class Board {
 					updateComponent.setBounds(mouseX - halfTileSize, mouseY - halfTileSize, updateComponent.getWidth(), updateComponent.getHeight());
 				}
 			}
+
 
 			@Override
 			public void mouseMoved(MouseEvent e) {}
