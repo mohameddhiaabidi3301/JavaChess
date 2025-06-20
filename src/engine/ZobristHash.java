@@ -17,8 +17,12 @@ public class ZobristHash {
 			zobristKeys[i] = new long[64];
 			for (int j = 0; j < 64; j++) {
 				zobristKeys[i][j] = rng.nextLong();
-				enPassantKeys[j] = rng.nextLong();
 			}
+		}
+		
+		// En Passant
+		for (int i = 0; i < 64; i++) {
+			enPassantKeys[i] = rng.nextLong();
 		}
 		
 		// Side to move
@@ -45,7 +49,7 @@ public class ZobristHash {
 		if (Position.enPassantTarget != -1) {hash ^= enPassantKeys[Position.enPassantTarget];};
 	}
 	
-	public static void updateZobrist(int move) {
+	public static void updateZobrist(int move, int previousEnPassantTarget, boolean[] previousCTR) {
 		byte from = (byte)(move & 0x3F);
 		byte to = (byte)((move >>> 6) & 0x3F);
 		byte originKey = (byte)((move >>> 12) & 0xF);
@@ -59,15 +63,36 @@ public class ZobristHash {
 		boolean isCastle = ((byte)(move >>> 28) & 1L) != 0;
 		byte castleType = (byte)((move >>> 20) & 3L);
 		
-		hash ^= zobristKeys[originKey][from];
-		hash ^= zobristKeys[originKey][to];
+		if (promotionKey != 0) {
+			hash ^= zobristKeys[originKey][from];
+			hash ^= zobristKeys[promotionKey][to];
+		} else {
+			hash ^= zobristKeys[originKey][from];
+			hash ^= zobristKeys[originKey][to];
+		}
 		
-		if (isCapture) {hash ^= zobristKeys[targetKey][to];};
+		if (isEnPassant) {
+			byte captureSquare = (byte)((color == 0) ? to - 8 : to + 8);
+			byte captureType = (byte)(color == 0 ? 7 : 1);
+			hash ^= zobristKeys[captureType][captureSquare];
+		} else if (isCapture) {;
+			hash ^= zobristKeys[targetKey][to];
+		}
+		
 		hash ^= whiteToMoveKey;
 		
-		if (isEnPassant) {hash ^= enPassantKeys[to];};
+		if (previousEnPassantTarget != -1) {
+		    hash ^= enPassantKeys[previousEnPassantTarget];
+		}
+		if (Position.enPassantTarget != -1) {
+		    hash ^= enPassantKeys[Position.enPassantTarget];
+		}
 		
 		for (byte i = 0; i < 4; i++) {
+			if (previousCTR[i]) { // Clear current keys
+				hash ^= castlingKeys[i];
+			}
+			
 			if (Position.castlingRights[i]) {
 				hash ^= castlingKeys[i];
 			}
@@ -85,14 +110,8 @@ public class ZobristHash {
 			}
 		}
 		
-		if (promotionKey != 0) {
-			hash ^= zobristKeys[originKey][to];
-			hash ^= zobristKeys[promotionKey][to];
-		}
-		
-		
 		//-4002584257597694895
 		
-		System.out.println(hash);
+		//System.out.println(hash);
 	}
 }

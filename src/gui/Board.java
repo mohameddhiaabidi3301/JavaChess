@@ -9,6 +9,7 @@ import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.Color;
 import java.awt.Component;
+import java.util.Arrays;
 import java.util.HashMap;
 
 
@@ -19,8 +20,10 @@ import javax.swing.SwingUtilities;
 
 import debug.DebugRender;
 import engine.Position;
+import engine.ZobristHash;
+import engine.EvaluateBoard;
 import engine.KeyToLegalMoves;
-
+import engine.Minimax;
 
 import javax.swing.JLayeredPane;
 
@@ -52,14 +55,19 @@ public class Board {
 		if (col < 0 || col > 7) return null;
 		
 		String color = (Position.engineLookup[square] <= 6) ? "white" : "black";
+		byte colorKey = (byte)((color == "white") ? 0 : 1);
 		
 		int[] moves = new int[0];
 		if (Position.engineLookup[square] != 0) {
-			moves = KeyToLegalMoves.pseudoMap[Position.engineLookup[square] - 1].apply((byte)row, (byte)col, color);
+			moves = KeyToLegalMoves.pseudoMap[Position.engineLookup[square] - 1].apply((byte)row, (byte)col, (byte)colorKey, false);
 		}
 		
 		JPanel component = (JPanel)piecePanel.getComponentAt(clickX, clickY);
-		byte colorKey = (byte)((color == "white") ? 0 : 1);
+		
+		if (component == null) {
+			System.err.println("No Component Found at (" + clickX + ", " + clickY + ")");
+			return null;
+		}
 		
 		//System.out.println("Clicked at (" + clickX + ", " + clickY + ") [" + row + ", " + col + ", " + square + "], " + Position.lookupBoard.get(square));
 		return new ClickData(row, col, square, Position.guilookupBoard[square], Position.engineLookup[square], color, colorKey, component, moves, component.getX(), component.getY());
@@ -111,7 +119,7 @@ public class Board {
 		byte selectionKey = Position.nameKeyConversion.get(selection);
 		
 		waitingForPromotion |= (selectionKey << 22);
-		Position.makeMove(waitingForPromotion);
+		Position.makeMove(waitingForPromotion, false);
 		renderAllPieces();
 		
 		layerPane.remove(promotionComponent);
@@ -181,7 +189,6 @@ public class Board {
 				}
 			}
 
-
 			@Override
 			public void mouseReleased(MouseEvent e) {
 				Point converted = SwingUtilities.convertPoint(layerPane, e.getPoint(), piecePanel);
@@ -209,7 +216,18 @@ public class Board {
 								
 								foundMatch = true;
 								
-								Position.makeMove(move);
+								//System.out.println("Causes Check?: " + Position.moveCausesCheck(move));
+								Position.makeMove(move, false);
+								int[] computerMove = Minimax.getComputerMove(false);
+								
+								System.out.println(Arrays.toString(computerMove));
+								System.out.println(ZobristHash.hash);
+								Position.makeMove(computerMove[0], true);
+	
+								System.out.println(ZobristHash.hash);
+			
+				
+								System.out.println(EvaluateBoard.getEval());
 								renderAllPieces();
 								
 								break;
@@ -275,3 +293,5 @@ public class Board {
 		});
 	}
 }
+
+

@@ -437,7 +437,16 @@ public class MagicBitboards {
 		return Arrays.copyOf(setBits, amount);
 	}
 	
-	public static long lineBB(byte squareStart, byte squareEnd) {
+	private static long[][] lines = new long[64][64];
+	public static void initPrecomputedLineBB() {
+		for (byte start = 0; start < 64; start++) {
+			for (byte end = 0; end < 64; end++) {
+				lines[start][end] = generateLine(start, end);
+			}
+		}
+	}
+	
+	private static long generateLine(byte squareStart, byte squareEnd) {
 		long bitboard = 0L;
 		
 		byte startRow = (byte)(squareStart / 8);
@@ -451,7 +460,7 @@ public class MagicBitboards {
 		int curRow = startRow + dx;
 		int curCol = startCol + dy;
 		
-		System.out.println(String.format("%d, %d, to %d, %d: [%d, %d]", startRow, startCol, endRow, endCol, dx, dy));
+		//System.out.println(String.format("%d, %d, to %d, %d: [%d, %d]", startRow, startCol, endRow, endCol, dx, dy));
 		
 		if (startRow == endRow) {
 			while (curCol != endCol) {
@@ -473,5 +482,9 @@ public class MagicBitboards {
 		}
 		
 		return bitboard;
+	}
+	
+	public static long lineBB(byte squareStart, byte squareEnd) {
+		return lines[squareStart][squareEnd];
 	}
 }

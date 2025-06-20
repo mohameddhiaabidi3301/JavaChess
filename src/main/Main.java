@@ -5,6 +5,8 @@ import engine.MoveGen;
 import engine.ZobristHash;
 import engine.PrecompMoves;
 import engine.MagicBitboards;
+import engine.Minimax;
+
 import java.util.Arrays;
 import debug.DebugRender;
 import gui.Board;
@@ -53,6 +55,7 @@ public class Main {
 		
 		MagicBitboards.initBishopLookups();
 		MagicBitboards.initRookLookups();
+		MagicBitboards.initPrecomputedLineBB();
 		
 		Position.attacks[0] = Position.getAttacks((byte)0, true);
 		Position.attacks[1] = Position.getAttacks((byte)1, true);
@@ -62,7 +65,6 @@ public class Main {
 		
 		Position.attacks[0] = Position.getAttacks((byte)0, false);
 		Position.attacks[1] = Position.getAttacks((byte)1, false);
-		
 		
 		
 		//DebugRender.renderLong(MagicBitboards.genRookBlockerMask(5, 6));

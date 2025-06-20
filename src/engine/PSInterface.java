@@ -2,5 +2,5 @@ package engine;
 
 @FunctionalInterface
 public interface PSInterface {
-	int[] apply(byte row, byte col, String color);
+	int[] apply(byte row, byte col, byte color, boolean includeSelfCaptures);
 }
