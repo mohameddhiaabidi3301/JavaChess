@@ -1,171 +1,19 @@
 package engine;
 
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.function.IntUnaryOperator;
+
 import debug.DebugRender;
 
 public class Minimax {
-	private static int[] evaluateMove(int move, boolean extendWithQuiessence, int depth, boolean isMaximizing, int alpha, int beta, int quiessenceCount, int ply, int[] bestMove) {
-		Position.makeMove(move, true);
-		
-		int nextDepth = extendWithQuiessence ? depth : depth - 1;
-		int nextQuiessence = extendWithQuiessence ? quiessenceCount + 1 : quiessenceCount;
-		
-		int[] scoreData = minimax(nextDepth, !isMaximizing, alpha, beta, nextQuiessence, ply);
-		Position.unmakeMove(move);
-		
-		if (!isMaximizing) {
-			if (scoreData[1] < bestMove[1]) {
-				bestMove = new int[] {
-					move,
-					scoreData[1],
-					nextDepth,
-					-1,
-					nextQuiessence,
-					ply,
-					alpha,
-					beta,
-				};
-			}
-		} else {
-			if (scoreData[1] > bestMove[1]) {
-				bestMove = new int[] {
-					move,
-					scoreData[1],
-					nextDepth,
-					-1,
-					nextQuiessence,
-					ply,
-					alpha,
-					beta,
-				};
-			}
-		}
-		
-		return bestMove;
-	}
-	
-	private static int staticExchangeEvaluation(byte targetSquare, int captureValue, byte sideToMove) {
-		int[] whiteAttackers = (Position.attacks[0][targetSquare]); // Sorts locations from least to most value
-		int[] blackAttackers = (Position.attacks[1][targetSquare]); // Sorts locations from least to most value
-		if (whiteAttackers == null) whiteAttackers = new int[0]; else whiteAttackers = insertionSortPieceValue(whiteAttackers);
-		if (blackAttackers == null) blackAttackers = new int[0]; else blackAttackers = insertionSortPieceValue(blackAttackers);
-		
-		int[] pieceValues = EvaluateBoard.valueMap;
-		
-		int[] used = new int[64];
-		
-		int side = sideToMove;
-		int gainIndex = 0;
-		int[] gains = new int[32];
-		gains[0] = captureValue;
-		
-		while (true) {
-			int[] currentAttackers = (side == 0) ? whiteAttackers : blackAttackers;
-			int nextAttacker = -1;
-			
-			for (int pos : currentAttackers) {
-				if (used[pos] == 0) {
-					nextAttacker = pos;
-					break;
-				}
-			}
-			
-			if (nextAttacker == -1) break;
-			
-			int gain = pieceValues[Position.engineLookup[nextAttacker]];
-			used[nextAttacker] = 1;
-			gainIndex++;
-			gains[gainIndex] = gain - gains[gainIndex - 1];
-		
-			side = 1 - side;
-		}
-		
-		for (int i = gainIndex - 1; i >= 0; i--) {
-			gains[i] = Math.max(-gains[i + 1], gains[i]);
-		}
-		
-		return gains[0];
-	}
-	
-	private static int scoreMoveHueristic(int move, boolean inQuiessence) {
-		byte to = (byte)((move >>> 6) & 0x3F);
-		byte pieceType = (byte)((move >>> 12) & 0xF);
-		byte captureType = (byte)((move >>> 16) & 0xF);
-		byte promotionFlag = (byte)((move >>> 27) & 1);
-		byte color = (byte)((move >>> 31) & 1);
-		
-		int ourPieceValue = EvaluateBoard.valueMap[pieceType];
-		int capturePieceValue = EvaluateBoard.valueMap[captureType];
-		
-		byte eval = 0;
-		
-		if (captureType != 0) {
-			if (inQuiessence) {
-				int see = staticExchangeEvaluation(to, capturePieceValue, color);
-				if (see > 0) eval += see;
-				else eval -= 7;
-			} else {
-				eval += 1;
-			}
-		}
-		
-		if (promotionFlag != 0) eval += EvaluateBoard.valueMap[((move >>> 22) & 0xF)] + 5;
-		
-		if (ourPieceValue < capturePieceValue) eval += 
-				(capturePieceValue - ourPieceValue);
-		
-		if (captureType != 0) {
-			int[][] opponentDefends = (color == 0) ? Position.attacks[1] : Position.attacks[0];
-			if (ourPieceValue > capturePieceValue && opponentDefends[to] != null) { // Attacking defended piece
-				int[] attackers = opponentDefends[to];
-				
-				for (int location : attackers) {
-					if (EvaluateBoard.valueMap[Position.engineLookup[location]] < ourPieceValue) { // The piece we attack is defended by a lesser value opponent peice (hanged)
-						eval -= 10;
-						break;
-					}
-				}
-			}
-		}
-		
-		return eval;
-	}
-	
-	private static int[] insertionSortOnHeuristic(int[] moveArray, boolean inQuiessence) {
-		for (byte i = 1; i < moveArray.length; i++) {
-			int key = moveArray[i];
-			byte j = (byte)(i - 1);
-			
-			while (j >= 0 && scoreMoveHueristic(moveArray[j], inQuiessence) < scoreMoveHueristic(key, inQuiessence)) {
-				moveArray[j + 1] = moveArray[j];
-				j = (byte)(j - 1);
-			}
-			
-			moveArray[j + 1] = key;
-		}
-		
-		return moveArray;
- 	}
-	
-	private static int[] insertionSortPieceValue(int[] pieceLocations) {
-		for (byte i = 1; i < pieceLocations.length; i++) {
-			int key = pieceLocations[i];
-			byte j = (byte)(i - 1);
-			
-			while (j >= 0 && EvaluateBoard.valueMap[Position.engineLookup[pieceLocations[j]]] > EvaluateBoard.valueMap[Position.engineLookup[key]]) {
-				pieceLocations[j + 1] = pieceLocations[j];
-				j = (byte)(j - 1);
-			}
-			
-			pieceLocations[j + 1] = key;
-		}
-		
-		return pieceLocations;
- 	}
-	
-	public static int[] getComputerMove(boolean isMaximizing) {
+	public static int[] getComputerMove(int minDepth, int maxMs, boolean isMaximizing) {
 		long startTime = System.nanoTime();
-		int[] move = minimax(3, isMaximizing, Integer.MIN_VALUE, Integer.MAX_VALUE, 0, 0);
+		
+		int[] move = iterativeDeepening(minDepth, maxMs, false);
+		
 		long endTime = System.nanoTime();
 		int millisecondsEllapsed = (int)((endTime - startTime) / 1_000_000);
 		
@@ -174,56 +22,251 @@ public class Minimax {
 		return move;
 	}
 	
-	private static int[] minimax(int depth, boolean isMaximizing, int alpha, int beta, int quiessenceCount, int ply) {
-		int gameScoreState = EvaluateBoard.isGameOver();
+	private static final int[] valueMap = EvaluateBoard.valueMap;
+	private static int moveScoreHeuristic(int move) {
+		byte to = (byte)((move >>> 6) & 0x3F);
+		byte pieceType = (byte)((move >>> 12) & 0xF);
+		byte captureType = (byte)((move >>> 16) & 0xF);
+		byte color = (byte)((move >>> 31) & 1);
+		
+		int ourValue = valueMap[pieceType];
+		int captureValue = valueMap[captureType];
+		int score = 0;
+		
+		if (captureValue > ourValue) {
+			score += captureValue - ourValue;
+		}
+		
+		int[] attackers = Position.attacks[1 - color][to];
+		int[] defenders = Position.attacks[color][to];
+		
+		if (Position.attacks[color][to] == null && Position.attacks[1 - color][to] != null) {
+			score -= ourValue; // Hanged Piece
+		}
+		
+		if (attackers != null && defenders != null) {
+			if (attackers.length > defenders.length) {
+				score -= ourValue;
+			}
+		}
+		
+		return score;
+	}
+	
+	public static void sortByScore(int[] arr, int[] previousBestMove, int depth, int ply) {
+	    int n = arr.length;
+	    int[] scores = new int[n];
 
+	    // Step 1: Precompute scores
+	    for (int i = 0; i < n; i++) {
+	        scores[i] = moveScoreHeuristic(arr[i]);
+	        if (previousBestMove != null && previousBestMove[0] == arr[i]) scores[i] = 1000;
+	        else if (killerMoves[ply][0] == arr[i] || killerMoves[ply][1] == arr[i]) scores[i] = 900;
+	    }
+
+	    // Step 2: In-place insertion sort (descending by score)
+	    for (int i = 1; i < n; i++) {
+	        int key = arr[i];
+	        int keyScore = scores[i];
+	        int j = i - 1;
+
+	        while (j >= 0 && scores[j] < keyScore) {
+	            arr[j + 1] = arr[j];
+	            scores[j + 1] = scores[j];
+	            j--;
+	        }
+	        arr[j + 1] = key;
+	        scores[j + 1] = keyScore;
+	    }
+	}
+	
+	private static final int FLAG_EXACT = 0;
+	private static final int FLAG_LOWERBOUND = 1; // (beta cutoff), cache value must be >= beta
+	private static final int FLAG_UPPERBOUND = 2; // (alpha cutoff), cache value must be <= alpha
+	private static final int FLAG_TIMEOUT = 3;
+	
+	// minDepth takes priority, if there is extra time it will run until maxTime (ms)
+	private static int[] iterativeDeepening(int minDepth, int maxTime, boolean isMaximizing) {
+		long startTime = System.nanoTime();
+		
+		// Clear killer moves
+		Arrays.stream(killerMoves).forEach(km -> Arrays.fill(km, -1));
+
+		int[] previousBestMove = null;
+		for (int currentDepth = 0; currentDepth >= 0; currentDepth++) {
+			long timeElapsedMs = (System.nanoTime() - startTime) / 1_000_000;
+			
+			if (currentDepth > minDepth && timeElapsedMs > maxTime) {
+				break;
+			}
+			
+			int[] newMove = minimax(currentDepth, isMaximizing, Integer.MIN_VALUE, Integer.MAX_VALUE, previousBestMove, startTime, maxTime, 0, 0);
+			
+			if (newMove[2] == FLAG_TIMEOUT) {
+				System.out.println("Timeout on move: " + Arrays.toString(newMove) + " (" + currentDepth + ")");
+				break;
+			}
+			
+			previousBestMove = newMove;			
+			System.out.println("(" + ((System.nanoTime() - startTime) / 1_000_000) + " ms)" + "Move at depth " + currentDepth + ": " + Position.logMove(previousBestMove[0]) + ": " + Arrays.toString(previousBestMove));
+			
+		}
+		
+		return previousBestMove;
+	}
+	
+	private static final int TT_SIZE = 1 << 22;
+	private static long[] zobristKeys = new long[TT_SIZE];
+	private static int[][] zobristValues = new int[TT_SIZE][4];
+	
+	private static int[][] killerMoves = new int[128][2];
+			
+	private static int[] minimax(int depth, boolean isMaximizing, int alpha, int beta, int[] previousBestMove, long itdStartTime, int maxTime, int quiessenceCount, int ply) {
 		if (depth == 0) {
-			return new int[] {-1, EvaluateBoard.getEval(), depth, -1, quiessenceCount, ply, alpha, beta};
+			return new int[] {-1, EvaluateBoard.getEval(), -1, depth};
 		}
 		
-		if (gameScoreState != -1) {
-			byte sign = (byte)(isMaximizing ? -1 : 1);
-			return new int[] {-1, gameScoreState + (ply * sign), depth, -1, quiessenceCount, ply, alpha, beta};
+		int TT_INDEX = (int)(ZobristHash.hash & (TT_SIZE - 1));
+		if (zobristKeys[TT_INDEX] == ZobristHash.hash) {
+			int[] data = Arrays.copyOf(zobristValues[TT_INDEX], 4);
+			int flag = data[2];
+			int cacheScore = data[1];
+			int cacheDepth = data[3];
+			
+			if (depth <= cacheDepth) {
+				if (flag == FLAG_EXACT) {
+					return data;
+				} else if (flag == FLAG_LOWERBOUND && cacheScore >= beta) {
+					return data;
+				} else if (flag == FLAG_UPPERBOUND && cacheScore <= alpha) {
+					return data;
+				}
+			}
 		}
 		
-		int[] moveArray = (!isMaximizing ? Position.getAllLegalMoves((byte)1) : Position.getAllLegalMoves((byte)0));
-		int[] bestMove = {-1, !isMaximizing ? Integer.MAX_VALUE : Integer.MIN_VALUE, depth, -1, quiessenceCount, ply, alpha, beta};
-		byte ourKingPos = (!isMaximizing ? Position.blackKingPos : Position.whiteKingPos);
+		boolean inEndGame = (Long.bitCount(Position.whiteOccupied) + Long.bitCount(Position.blackOccupied)) <= 14;
+		boolean usInCheck = (isMaximizing ? Position.attacks[1][Position.whiteKingPos] != null : Position.attacks[0][Position.blackKingPos] != null);
+	
+		if (depth >= 3 && quiessenceCount == 0 && !usInCheck && !inEndGame) {
+			int R = 2; // Depth Reduction
+			Position.toggleNullMove(); // Symmetric
+			
+			int[] nullScore = minimax(depth - R - 1, !isMaximizing, -beta, -beta + 1, null, itdStartTime, maxTime, quiessenceCount, ply + 1);
+			Position.toggleNullMove();
+			
+			if (nullScore[1] >= beta) {
+				return new int[] {-1, beta, FLAG_LOWERBOUND, depth}; // Beta cutoff
+			}
+		}
 		
-		boolean usInCheck = (!isMaximizing
-			? Position.attacks[0][ourKingPos] != null :
-			Position.attacks[1][ourKingPos] != null);
-		boolean inQuiessence = (quiessenceCount > 0);
+		int[] moves = (isMaximizing) ? Position.getAllLegalMoves((byte)0) : Position.getAllLegalMoves((byte)1);
+		int[] bestMove = new int[] {-1, (isMaximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE), -1, depth};
+		sortByScore(moves, previousBestMove, depth, ply); // Order the PBM first because its likely good
 		
-		moveArray = insertionSortOnHeuristic(moveArray, inQuiessence);		
-		for (int i = 0; i < moveArray.length; i++) {
-			int move = moveArray[i];
+		if (moves.length == 0) {
+			if (usInCheck) {
+				return new int[] {-1, isMaximizing ? -100_000 + ply : 100_000 - ply, -1, depth};
+			} else {
+				return new int[] {-1, 0, -1, depth};
+			}
+		}
+		
+		int cutoffFlag = FLAG_EXACT; // Default
+		for (int i = 0; i < moves.length; i++) {
+			int move = moves[i];
+			byte to = (byte)((move >>> 6) & 0x3F);
 			boolean isCapture = ((move >>> 16) & 0xF) != 0;
 			boolean isPromotion = ((move >>> 27) & 1) != 0;
+			//boolean isHighValuePiece = (((move >>> 12) & 0xF) % 6) >= 4;
 			
-			boolean extendWithQuiessence = (isCapture || isPromotion || usInCheck) && quiessenceCount < 6;
-			byte[] potentialPromotionKeys = (isMaximizing ? Position.whitePromotions : Position.blackPromotions);
+			boolean extendQuiessence = ((isCapture || isPromotion) && quiessenceCount < 4);
+			int nextDepth = (extendQuiessence) ? depth : depth - 1;
+			int nextQuiessence = (extendQuiessence) ? quiessenceCount + 1 : quiessenceCount;
+			
+			if ((System.nanoTime() - itdStartTime) / 1_000_000 > maxTime) {
+				if (bestMove[0] == -1) {
+			        return new int[] {-1, 0, FLAG_TIMEOUT, depth};
+			    }
+				
+				bestMove[2] = FLAG_TIMEOUT;
+				return bestMove;
+			}
 			
 			if (!isPromotion) {
-				int[] eval = evaluateMove(move, extendWithQuiessence, depth, isMaximizing, alpha, beta, quiessenceCount, ply + 1, bestMove);
-				bestMove = eval;
+				Position.makeMove(move, true);
 				
-				if (!isMaximizing) {beta = Math.min(beta, eval[1]);}
-				else alpha = Math.max(alpha, eval[1]);
+				int[] score = minimax(nextDepth, !isMaximizing, alpha, beta, null, itdStartTime, maxTime, nextQuiessence, ply + 1);
+				Position.unmakeMove(move);
 				
-				if (beta <= alpha) break;
-			} else {
-				for (byte pk : potentialPromotionKeys) {
-					int promotionMove = ((move & ~(0xF << 22)) | (pk << 22));
-					
-					int[] eval = evaluateMove(promotionMove, extendWithQuiessence, depth, isMaximizing, alpha, beta, quiessenceCount, ply + 1, bestMove);
-					bestMove = eval;
-					
-					if (!isMaximizing) {beta = Math.min(beta, eval[1]);}
-					else alpha = Math.max(alpha, eval[1]);
-					
-					if (beta <= alpha) break;
+				if (isMaximizing) {
+					 if (score[1] > bestMove[1]) {
+						 bestMove[1] = score[1];
+						 bestMove[0] = move;
+						 alpha = Math.max(alpha, score[1]);
+					 }
+				} else {
+					if (score[1] < bestMove[1]) {
+						bestMove[1] = score[1];
+						bestMove[0] = move;
+						beta = Math.min(beta, score[1]);
+					}
 				}
+				
+				if (beta <= alpha) {
+					cutoffFlag = (isMaximizing) ? FLAG_LOWERBOUND : FLAG_UPPERBOUND;
+					
+					if (!isCapture && cutoffFlag == FLAG_LOWERBOUND) { // Beta cutoff on non-capture
+						if (killerMoves[ply][0] != move) {
+					        killerMoves[ply][1] = killerMoves[ply][0];
+					        killerMoves[ply][0] = move;
+					    }
+					}
+					
+					break;
+				};
+			} else {
+				byte[] pkKeys = (isMaximizing ? Position.whitePromotions : Position.blackPromotions);
+				
+				for (byte key : pkKeys) {
+					int promotionMove = (move & ~(0xF << 22)) | (key << 22);
+					
+					Position.makeMove(promotionMove, true);
+					
+					int[] score = minimax(nextDepth, !isMaximizing, alpha, beta, null, itdStartTime, maxTime, nextQuiessence, ply + 1);
+					Position.unmakeMove(promotionMove);
+					
+					if (isMaximizing) {
+						 if (score[1] > bestMove[1]) {
+							 bestMove[1] = score[1];
+							 bestMove[0] = promotionMove;
+							 alpha = Math.max(alpha, score[1]);
+						 }
+					} else {
+						if (score[1] < bestMove[1]) {
+							bestMove[1] = score[1];
+							bestMove[0] = promotionMove;
+							beta = Math.min(beta, score[1]);
+						}
+					}
+					
+					if (beta <= alpha) {
+						cutoffFlag = (isMaximizing) ? FLAG_LOWERBOUND : FLAG_UPPERBOUND;
+						break;
+					};
+				}
+			}
+		}
+		
+		bestMove[2] = cutoffFlag;
+		
+		if (bestMove[2] != FLAG_TIMEOUT) {
+			if (zobristKeys[TT_INDEX] == ZobristHash.hash) {
+				if (zobristValues[TT_INDEX][3] <= depth) {
+					zobristValues[TT_INDEX] = bestMove;
+				}
+			} else {
+				zobristKeys[TT_INDEX] = ZobristHash.hash;
+				zobristValues[TT_INDEX] = bestMove;
 			}
 		}
 		

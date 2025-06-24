@@ -32,6 +32,7 @@ public class Board {
 	static public JFrame board = new JFrame("Board");
 	static private JLayeredPane layerPane = new JLayeredPane();
 	static private JPanel tilePanel = new JPanel();
+	static private JPanel tileFXPanel = new JPanel();
 	static private JPanel piecePanel = new JPanel();
 	static private JPanel previewPanel = new JPanel();
 	
@@ -92,25 +93,42 @@ public class Board {
 		previewPanel.repaint();
 	}
 	
-	private static void renderAllPieces() {
+	public static void renderAllPieces() {
 		piecePanel.removeAll();
-
+		tileFXPanel.removeAll();
+		
+		int lastPlayedMove = Position.lastGuiMove;
+		
+		if (lastPlayedMove != -1) {
+			int lastFrom = ((lastPlayedMove & 0x3F));
+			int lastTo = ((lastPlayedMove >>> 6) & 0x3F);
+			Color fromColor = new Color(255, 253, 139, 130);
+			Color toColor = new Color(235, 235, 71, 130);
+			
+			JPanel fromTile = new Tile(fromColor, fromColor, tileSize);
+			tileFXPanel.add(fromTile);
+			fromTile.setBounds((lastFrom % 8) * tileSize, (7 - (lastFrom / 8)) * tileSize, tileSize, tileSize);
+			
+			JPanel toTile = new Tile(toColor, toColor, tileSize);
+			tileFXPanel.add(toTile);
+			toTile.setBounds((lastTo % 8) * tileSize, (7 - (lastTo / 8)) * tileSize, tileSize, tileSize);
+		}
 
 		for (int square = 0; square < 64; square++) {
 			String piece = Position.guilookupBoard[square];
 			if (piece == null || piece.isEmpty()) continue;
-
-
+			
 			int row = square / 8;
 			int col = square % 8;
 
-
-			JPanel newPiece = new Piece(piece, tileSize);
+			JPanel newPiece = new Piece(piece, tileSize);			
 			piecePanel.add(newPiece);
 			newPiece.setBounds(col * tileSize, (7 - row) * tileSize, tileSize, tileSize);
 		}
-
-
+		
+		tileFXPanel.revalidate();
+		tileFXPanel.repaint();
+		
 		piecePanel.revalidate();
 		piecePanel.repaint();
 	}
@@ -120,6 +138,12 @@ public class Board {
 		
 		waitingForPromotion |= (selectionKey << 22);
 		Position.makeMove(waitingForPromotion, false);
+		
+		int[] computerMove = Minimax.getComputerMove(5, 5000, false);
+		
+		System.out.println(Arrays.toString(computerMove));			
+		Position.makeMove(computerMove[0], false);
+		
 		renderAllPieces();
 		
 		layerPane.remove(promotionComponent);
@@ -133,6 +157,9 @@ public class Board {
 		
 		tilePanel.setBounds(0, 0, tileSize * 8, tileSize * 8);
 		tilePanel.setLayout(new GridLayout(8, 8));
+		
+		tileFXPanel.setBounds(0, 0, tileSize * 8, tileSize * 8);
+		tileFXPanel.setLayout(null);
 		
 		piecePanel.setBounds(0, 0, tileSize * 8, tileSize * 8);
 		piecePanel.setLayout(null);
@@ -159,9 +186,10 @@ public class Board {
 			}
 		}
 		
-		layerPane.add(tilePanel, 1);
-		layerPane.add(piecePanel, 0);
-		layerPane.add(previewPanel, 0);
+		layerPane.add(tilePanel, Integer.valueOf(0));
+		layerPane.add(tileFXPanel, Integer.valueOf(1));
+		layerPane.add(piecePanel, Integer.valueOf(2));
+		layerPane.add(previewPanel, Integer.valueOf(3));
 		board.add(layerPane);
 		
 		board.pack();
@@ -169,6 +197,8 @@ public class Board {
 		
 		piecePanel.setOpaque(false);
 		previewPanel.setOpaque(false);
+		tileFXPanel.setOpaque(false);
+		tilePanel.setOpaque(false);
 		
 		board.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		layerPane.addMouseListener(new MouseListener() {
@@ -181,7 +211,9 @@ public class Board {
 				
 				ClickData data = getDataAtPos(clickX, clickY);
 				if (waitingForPromotion != -1) return;
+				if (data == null) return;
 				if (data.colorKey != Position.sideToMove) return;
+				if (data.pieceName == null) return;
 				
 				if (data != null && !data.pieceName.isEmpty()) {
 					activeDrag = data;
@@ -216,18 +248,12 @@ public class Board {
 								
 								foundMatch = true;
 								
-								//System.out.println("Causes Check?: " + Position.moveCausesCheck(move));
-								Position.makeMove(move, false);
-								int[] computerMove = Minimax.getComputerMove(false);
+								Position.makeMove(move, false);		
+								int[] computerMove = Minimax.getComputerMove(5, 5000, false);
 								
-								System.out.println(Arrays.toString(computerMove));
-								System.out.println(ZobristHash.hash);
-								Position.makeMove(computerMove[0], true);
-	
-								System.out.println(ZobristHash.hash);
-			
-				
-								System.out.println(EvaluateBoard.getEval());
+								System.out.println(Arrays.toString(computerMove));			
+								Position.makeMove(computerMove[0], false);
+								
 								renderAllPieces();
 								
 								break;

@@ -11,41 +11,41 @@ import debug.DebugRender;
 public class Position {
 	// FOR GUI ONLY, NOT FOR ENGINE
 	public static String[] guilookupBoard = {
-	    "whiteRooks", "whiteKnights", "whiteBishops", "whiteQueens", "whiteKing", "whiteBishops", "whiteKnights", "whiteRooks",
-	    "whitePawns", "whitePawns", "whitePawns", "whitePawns", "whitePawns", "whitePawns", "whitePawns", "whitePawns",
+		"", "", "", "", "", "", "", "",
+		"", "", "", "", "", "", "", "",
 	    "", "", "", "", "", "", "", "",
 	    "", "", "", "", "", "", "", "",
 	    "", "", "", "", "", "", "", "",
 	    "", "", "", "", "", "", "", "",
-	    "blackPawns", "blackPawns", "blackPawns", "blackPawns", "blackPawns", "blackPawns", "blackPawns", "blackPawns",
-	    "blackRooks", "blackKnights", "blackBishops", "blackQueens", "blackKing", "blackBishops", "blackKnights", "blackRooks"
+	    "", "", "", "", "", "", "", "",
+	    "", "", "", "", "", "", "", "",
 	};
 	
 	public static byte[] engineLookup = {
-	    4, 2, 3, 5, 6, 3, 2, 4,     // white back rank
-	    1, 1, 1, 1, 1, 1, 1, 1,     // white pawns
+		0, 0, 0, 0, 0, 0, 0, 0,     // empty
+		0, 0, 0, 0, 0, 0, 0, 0,     // empty
 	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
 	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
 	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
 	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
-	    7, 7, 7, 7, 7, 7, 7, 7,     // black pawns
-	    10, 8, 9, 11, 12, 9, 8, 10  // black back rank
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
 	};
 	public static long[] bitboards = {
 	    0L,                                      // 0 - no piece
-	    0xFFL << 8,                              // 1 - whitePawns
-	    (1L << 1) | (1L << 6),                   // 2 - whiteKnights
-	    (1L << 2) | (1L << 5),                   // 3 - whiteBishops
-	    (1L << 0) | (1L << 7),                   // 4 - whiteRooks
-	    (1L << 3),                               // 5 - whiteQueens
-	    (1L << 4),                               // 6 - whiteKing
+	    0L,                         // 1 - whitePawns
+	    0L,                   // 2 - whiteKnights
+	    0L,                   // 3 - whiteBishops
+	    0L,                   // 4 - whiteRooks
+	    0L,                               // 5 - whiteQueens
+	    0L,                               // 6 - whiteKing
 	   
-	    0xFFL << 48,                             // 7 - blackPawns
-	    (1L << 57) | (1L << 62),                 // 8 - blackKnights
-	    (1L << 58) | (1L << 61),                 // 9 - blackBishops
-	    (1L << 56) | (1L << 63),                 // 10 - blackRooks
-	    (1L << 59),                              // 11 - blackQueens
-	    (1L << 60)                               // 12 - blackKing
+	    0L,                             // 7 - blackPawns
+	    0L,                 // 8 - blackKnights
+	    0L,                 // 9 - blackBishops
+	    0L,                 // 10 - blackRooks
+	    0L,                              // 11 - blackQueens
+	    0L,                              // 12 - blackKing
 	};
 	
 	public static long[] cardinalThreats = {
@@ -71,14 +71,108 @@ public class Position {
 	public static byte enPassantColor = -1;
 	
 	public static boolean[] castlingRights = {
-		true, // white castle short
-		true, // white castle long
-		true, // black castle short
-		true // black castle long
+		false,
+		false,
+		false,
+		false,
 	};
 	
-	public static String[] allNames = {"whitePawns", "whiteKnights", "whiteBishops", "whiteRooks", "whiteQueens", "whiteKing", "blackPawns", "blackKnights", "blackBishops", "blackRooks", "blackQueens", "blackKing"};
+	public static String logMove(int move) {
+		if (move == -1) {
+			return "Null Move";
+		}
+		
+		byte from = (byte)(move & 0x3F);
+		byte to = (byte)((move >>> 6) & 0x3F);
+		byte pieceType = (byte)((move >>> 12) & 0xF);
+		byte captureType = (byte)((move >>> 16) & 0xF);
+		
+		byte ogRow = (byte) (from / 8);
+		byte ogCol = (byte) (from % 8);
+		
+		byte toRow = (byte) (to / 8);
+		byte toCol = (byte) (to % 8);
+		
+		return String.format("%s from (%d, %d) to (%d, %d), %s", 
+				allNames[pieceType - 1], ogRow, ogCol, toRow, toCol, (captureType != 0) ? "Captures " + allNames[captureType - 1] : "");
+	}
 	
+	public static void loadPositionFromFEN(String FEN) {
+		// rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq
+		HashMap<Character, Integer> lookup = new HashMap<Character, Integer>();
+		lookup.put('P', 1);
+		lookup.put('N', 2);
+		lookup.put('B', 3);
+		lookup.put('R', 4);
+		lookup.put('Q', 5);
+		lookup.put('K', 6);
+		
+		lookup.put('p', 7);
+		lookup.put('n', 8);
+		lookup.put('b', 9);
+		lookup.put('r', 10);
+		lookup.put('q', 11);
+		lookup.put('k', 12);
+		
+		engineLookup = new byte[64];
+		guilookupBoard = new String[64];
+		for (int i = 0; i < bitboards.length; i++) bitboards[i] = 0L;
+		
+		String[] segments = FEN.split(" ");
+		String[] boardState = segments[0].split("/");
+		String moveColor = segments[1];
+		String fenCastles = segments[2];
+		
+		int rowCount = 7;
+		for (String row : boardState) {
+			int curCol = 0;
+			int strIndex = 0;
+
+			while (curCol < 8 && strIndex < row.length()) {
+			    char piece = row.charAt(strIndex++);
+
+			    if (Character.isDigit(piece)) {
+			        curCol += piece - '0'; // skip empty squares
+			    } else {
+			        int boardIndex = lookup.get(piece);
+			        int square = rowCount * 8 + curCol;
+
+			        bitboards[boardIndex] |= (1L << square);
+			        engineLookup[square] = (byte)boardIndex;
+			        guilookupBoard[square] = allNames[boardIndex - 1];
+			        
+			        if (boardIndex == 6) whiteKingPos = (byte)square;
+			        if (boardIndex == 12) blackKingPos = (byte)square;
+
+			        curCol++;
+			    }
+			}
+			
+			rowCount--;
+		}
+		
+		if (moveColor.equals("w")) {
+			sideToMove = 0;
+		} else sideToMove = 1;
+		
+		if (fenCastles.indexOf('K') != -1) {
+			castlingRights[0] = true;
+		}
+		
+		if (fenCastles.indexOf('Q') != -1) {
+			castlingRights[1] = true;
+		}
+		
+		if (fenCastles.indexOf('k') != -1) {
+			castlingRights[2] = true;
+		}
+		
+		if (fenCastles.indexOf('q') != -1) {
+			castlingRights[3] = true;
+		}
+	}
+	
+	public static String[] allNames = {"whitePawns", "whiteKnights", "whiteBishops", "whiteRooks", "whiteQueens", "whiteKing", "blackPawns", "blackKnights", "blackBishops", "blackRooks", "blackQueens", "blackKing"};
 	public static HashMap<String, Byte> nameKeyConversion = new HashMap<String, Byte>();
 	static {
 		// 0 REPRESENTS NO BOARD, subtract index by 1 to access valid board in allNames;
@@ -117,12 +211,19 @@ public class Position {
 		cardinalThreats[3] = bitboards[9] | bitboards[11];
 	}
 	
+	public static short whiteMoveCount = 0;
+	public static short blackMoveCount = 0;
+	public static long whiteAttackBitboard = 0L;
+	public static long blackAttackBitboard = 0L;
+	
 	public static int[][] getAttacks(byte color, boolean isInitialization) {
-		String colorParam = (color == 0) ? "white" : "black";
 		int[][] attackBoard = new int[64][];
 		byte myKingPos = (byte)(color == 0 ? blackKingPos : whiteKingPos);
 		
 		int[] pieceLocations = (color == 0 ? MagicBitboards.getSetBits(whiteOccupied) : MagicBitboards.getSetBits(blackOccupied));
+		if (color == 0) whiteMoveCount = 0; else blackMoveCount = 0;
+		if (color == 0) whiteAttackBitboard = 0L; else blackAttackBitboard = 0L;
+		
 		
 		for (int square : pieceLocations) {
 			byte row = (byte)(square / 8);
@@ -132,8 +233,10 @@ public class Position {
 			int[] moves = null;
 			if (pieceType == 1 || pieceType == 7) {
 				moves = isInitialization ? 
-						PrecompMoves.precomputedMoves.get(colorParam + "PawnCaptures")[square] :
-						LegalityCheck.legal(PrecompMoves.precomputedMoves.get(colorParam + "PawnCaptures")[square]);
+						PrecompMoves.precomputedMoves[color == 0 ? 2 : 3][square] :
+						LegalityCheck.legal(PrecompMoves.precomputedMoves[color == 0 ? 2 : 3][square]);
+			} else if (pieceType == 6 || pieceType == 12) {
+				moves = PrecompMoves.precomputedMoves[5][square];
 			} else {
 				allOccupied &= ~(1L << myKingPos);
 				moves = isInitialization ? 
@@ -143,9 +246,13 @@ public class Position {
 				allOccupied |= (1L << myKingPos);
 			}
 			
+			if (color == 0) whiteMoveCount += moves.length; else blackMoveCount += moves.length;
+			
 			for (int move : moves) {
 				byte from = (byte)(move & 0x3F);
 				byte to = (byte)((move >>> 6) & 0x3F);
+				
+				if (color == 0) whiteAttackBitboard |= (1L << to); else blackAttackBitboard |= (1L << to);
 				
 				if (attackBoard[to] == null) attackBoard[to] = new int[0];
 				int[] newArray = new int[attackBoard[to].length + 1];
@@ -164,9 +271,7 @@ public class Position {
 	public static int[] getAllLegalMoves(byte color) {
 		int[] moves = new int[128];
 		int moveCount = 0;
-		byte rangeStart = (byte)((color == 0) ? 1 : 7);
-		byte rangeMax = (byte)((color == 0) ? 6 : 12);
-		
+
 		long myOccupancy = (color == 0) ? whiteOccupied : blackOccupied;
 		int[] pieceLocations = MagicBitboards.getSetBits(myOccupancy);
 		
@@ -176,12 +281,10 @@ public class Position {
 			
 			byte pieceType = engineLookup[square];
 			
-			if (pieceType >= rangeStart && pieceType <= rangeMax) {
-				int[] subMoves = KeyToLegalMoves.pseudoMap[pieceType - 1].apply(row, col, color, false);
-				System.arraycopy(subMoves, 0, moves, moveCount, subMoves.length);
-				
-				moveCount += subMoves.length;
-			}
+			int[] subMoves = KeyToLegalMoves.pseudoMap[pieceType - 1].apply(row, col, color, false);
+			System.arraycopy(subMoves, 0, moves, moveCount, subMoves.length);
+			
+			moveCount += subMoves.length;
 		}
 		
 		return Arrays.copyOf(moves, moveCount);
@@ -191,7 +294,7 @@ public class Position {
 	public static int[][] pins = new int[2][];
 	
 	public static Deque<byte[]> enPassantStack = new ArrayDeque<byte[]>();
-	private static Deque<boolean[]> castleStack = new ArrayDeque<boolean[]>();
+	public static Deque<boolean[]> castleStack = new ArrayDeque<boolean[]>();
 	private static Deque<long[]> zobristStack = new ArrayDeque<long[]>();
 
 	public static boolean moveCausesCheck(int move) { // Checks if a move will cause a new check, before calling the actual move
@@ -232,6 +335,17 @@ public class Position {
 		pins[1] = LegalityCheck.getPinnedPieces((byte)1);
 	}
 	
+	public static void logCastleStack() {
+		System.out.println("_______________________");
+		System.out.println("Castle Stack Length: " + castleStack.size());
+		
+		for (boolean[] rights : castleStack) {
+			System.out.println(Arrays.toString(rights));
+		}
+		System.out.println("_________________________");
+	}
+	
+	public static int lastGuiMove = -1;
 	public static void makeMove(int move, boolean isEngine) {
 		byte from = (byte)(move & 0x3F);
 		byte to = (byte)((move >>> 6) & 0x3F);
@@ -247,14 +361,12 @@ public class Position {
 		byte castleType = (byte)((move >>> 20) & 3L);
 		
 		byte savedEPTarget = enPassantTarget;
-		boolean[] savedCTR = {
+		boolean[] savedCTR = new boolean[] {
 			castlingRights[0],
 			castlingRights[1],
 			castlingRights[2],
 			castlingRights[3],
 		};
-		
-		//System.out.println(String.format("Move, From: %d, To: %d, OriginKey %d, targetKey: %d, Double Pawn: %b, IsEnPassant: %b, isCastle: %b, castleType: %d Color: %d", from, to, originKey, targetKey, isDoublePawn, isEnPassant, isCastle, castleType, color));
 		
 		// StackData
 		if (isEngine) {
@@ -270,6 +382,8 @@ public class Position {
 			});
 			
 			zobristStack.add(new long[] {ZobristHash.hash});
+		} else {
+			lastGuiMove = move;
 		}
 		
 		// White: 0, Black: 1
@@ -280,6 +394,9 @@ public class Position {
 			if (isCapture) {
 				blackOccupied &= ~(1L << to);
 				bitboards[targetKey] &= ~(1L << to);
+				
+				if (targetKey == 10 && to == 63) castlingRights[2] = false;
+				if (targetKey == 10 && to == 56) castlingRights[3] = false;
 			};
 		} else {
 			blackOccupied &= ~(1L << from);
@@ -288,6 +405,9 @@ public class Position {
 			if (isCapture) {
 				whiteOccupied &= ~(1L << to);
 				bitboards[targetKey] &= ~(1L << to);
+				
+				if (targetKey == 4 && to == 0) castlingRights[1] = false;
+				if (targetKey == 4 && to == 7) castlingRights[0] = false;
 			}
 		}
 		
@@ -317,6 +437,17 @@ public class Position {
 				
 				castlingRights[2] = false;
 				castlingRights[3] = false;
+			}
+		}
+		
+		// Rook Move
+		if (originKey == 4 || originKey == 10) {
+			if (color == 0) {
+				if (from == 7) castlingRights[0] = false;
+				if (from == 0) castlingRights[1] = false;
+			} else if (color == 1) {
+				if (from == 63) castlingRights[2] = false;
+				if (from == 56) castlingRights[3] = false;
 			}
 		}
 		
@@ -390,8 +521,6 @@ public class Position {
 				guilookupBoard[from - 4] = "";
 				guilookupBoard[from - 1] = rookName;
 			}
-			
-			castlingRights[castleType] = false;
 		}
 		
 		if (promotionKey != 0) {
@@ -427,7 +556,6 @@ public class Position {
 		
 		byte color = (byte)((move >>> 31) & 1L);
 		boolean isCapture = targetKey != 0;
-		boolean isDoublePawn = ((byte)((move >>> 30) & 1L)) != 0;
 		boolean isEnPassant = ((byte)(move >>> 29) & 1L) != 0;
 		boolean isCastle = ((byte)(move >>> 28) & 1L) != 0;
 		byte castleType = (byte)((move >>> 20) & 3L);
@@ -548,19 +676,19 @@ public class Position {
 			}
 		}
 		
-		boolean[] castleData = castleStack.pop();
+		boolean[] castleData = castleStack.removeLast();
 		castlingRights[0] = castleData[0];
 		castlingRights[1] = castleData[1];
 		castlingRights[2] = castleData[2];
 		castlingRights[3] = castleData[3];
 		
-		byte[] epData = enPassantStack.pop();
+		byte[] epData = enPassantStack.removeLast();
 		enPassantTarget = epData[0];
 		enPassantColor = epData[1];
 		
 		// Side to Move and Zobrist
 		sideToMove = (byte)(1 - sideToMove);
-		ZobristHash.hash = zobristStack.pop()[0];
+		ZobristHash.hash = zobristStack.removeLast()[0];
 		
 		// Cardinal Updating
 		cardinalThreats[0] = bitboards[4] | bitboards[5];
@@ -570,6 +698,11 @@ public class Position {
 		cardinalThreats[3] = bitboards[9] | bitboards[11];
 		
 		updateAttackAndPins();
+	}
+	
+	public static void toggleNullMove() {
+		sideToMove = (byte)(1 - sideToMove);
+		ZobristHash.hash ^= ZobristHash.whiteToMoveKey;
 	}
 	
 	// Debug

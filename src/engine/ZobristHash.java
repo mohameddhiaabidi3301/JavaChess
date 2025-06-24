@@ -5,7 +5,7 @@ public class ZobristHash {
 	private static long[][] zobristKeys = new long[13][];
 	private static long[] enPassantKeys = new long[64];
 	private static long[] castlingKeys = new long[4];
-	private static long whiteToMoveKey;
+	public static long whiteToMoveKey; // Public so a null move can toggle the side to move
 	
 	public static long hash = 0L;
 	

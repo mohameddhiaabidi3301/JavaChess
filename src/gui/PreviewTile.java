@@ -16,6 +16,7 @@ public class PreviewTile extends JPanel {
 	@Override
 	protected void paintComponent(Graphics g) {
 		super.paintComponent(g);
+		g.setColor(new Color(0, 0, 0, 127));
 		
 		g.fillArc(size / 2, size / 2, size, size, 0, 360);
 	}

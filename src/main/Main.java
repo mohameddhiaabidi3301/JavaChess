@@ -13,9 +13,9 @@ import gui.Board;
 
 public class Main {
 	private static void searchMagics() {
-		int[] range1 = {1, 2, 3, 4, 5, 6, 8, 9, 11, 12, 13, 17, 18, 19, 21, 25, 37, 43, 44};
-		int[] range2 = {4, 5, 6, 1, 2, 3, 8, 9, 11, 12, 13, 17, 18, 19, 21, 25, 37, 43, 44};
-		int[] range3 = {11, 12, 13, 17, 18, 19, 21, 25, 37, 43, 44, 4, 5, 6, 1, 2, 3, 8, 9};
+		int[] range1 = {1, 2};
+		int[] range2 = {3, 4};
+		int[] range3 = {4, 5};
 		
 		MagicSearchThread t1 = new MagicSearchThread(range1);   // 8 positions (0-7)
 		t1.start();
@@ -41,6 +41,7 @@ public class Main {
 	public static void main(String[] args) {
 		System.out.println("Hello World");
 		
+		Position.loadPositionFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq");
 		Position.initOccupancy();
 		PrecompMoves.init();
 		ZobristHash.initZobrist();
@@ -56,6 +57,7 @@ public class Main {
 		MagicBitboards.initBishopLookups();
 		MagicBitboards.initRookLookups();
 		MagicBitboards.initPrecomputedLineBB();
+		MagicBitboards.initPawnAttackMasks();
 		
 		Position.attacks[0] = Position.getAttacks((byte)0, true);
 		Position.attacks[1] = Position.getAttacks((byte)1, true);
@@ -65,12 +67,6 @@ public class Main {
 		
 		Position.attacks[0] = Position.getAttacks((byte)0, false);
 		Position.attacks[1] = Position.getAttacks((byte)1, false);
-		
-		
-		//DebugRender.renderLong(MagicBitboards.genRookBlockerMask(5, 6));
-		//DebugRender.renderLong(MagicBitboards.genRookBlockerMask(5, 6) & Position.allOccupied);
-		//DebugRender.renderMoveArray(MagicBitboards.simulateRook(5, 6, Position.allOccupied & MagicBitboards.genRookBlockerMask(5, 6)));
-		//DebugRender.renderMoveArray(MoveGen.pseudoRooks((byte)5, (byte)6, "black"));
 		
 		//searchMagics();
 		Board.init();

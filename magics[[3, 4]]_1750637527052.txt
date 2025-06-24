@@ -1,0 +1,28 @@
+=== Magic Number Search Results for [[3, 4]] ===
+Started at: Sun Jun 22 20:12:07 EDT 2025
+
+[4][Rook] - 0x200020004100820L - Attempts: 3954 - Time: 0.02 min
+[3][Rook] - 0xc1001000a0884500L - Attempts: 22341 - Time: 0.06 min
+
+=== FINAL SUMMARY ===
+Completed at: Sun Jun 22 20:12:10 EDT 2025
+
+Rook Magics:
+rook_magics[3] = 0xc1001000a0884500L;
+rook_magics[4] = 0x200020004100820L;
+
+Bishop Magics:
+=== Magic Number Search Results for [[3, 4]] ===
+Started at: Sun Jun 22 20:12:07 EDT 2025
+
+[4][Rook] - 0x4200040201101820L - Attempts: 74208 - Time: 0.11 min
+[3][Rook] - 0x300080410010260L - Attempts: 140888 - Time: 0.15 min
+
+=== FINAL SUMMARY ===
+Completed at: Sun Jun 22 20:12:15 EDT 2025
+
+Rook Magics:
+rook_magics[3] = 0x300080410010260L;
+rook_magics[4] = 0x4200040201101820L;
+
+Bishop Magics:

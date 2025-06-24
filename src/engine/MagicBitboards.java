@@ -6,6 +6,10 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.io.*;
 import java.util.*;
 import debug.DebugRender;
@@ -13,24 +17,23 @@ import debug.DebugRender;
 
 public class MagicBitboards {
 	public static long[] rookMagics = {
-	    0x8A80104000800020L, 0x0084020100804000L, 0x00800A1000048020L, 0xC4100020B1000200L,
-	    0x0400440002080420L, 0x0A8004002A801200L, 0x0840140C80400100L, 0x010000820C412300L,
-	    0x0010800212400820L, 0x0008050190002800L, 0x56003046012181L, 0xe4910038d0010060L,
+	    0x8A80104000800020L, 0x40004010002000L, 0x220008b200208040L, 0xc1001000a0884500L,
+	    0x200020004100820L, 0x1100040001000208L, 0xf4001d0a300e8804L, 0x010000820C412300L,
+	    0x9603800195e4c000L, 0x8b324000c3a01008L, 0x56003046012181L, 0xe4910038d0010060L,
 	    0x67b005018002d00L, 0x38a0010181a00bcL, 0x6cac00287e2c1017L, 0x95e600054e14058fL,
 	    0x8ee5e88003854007L, 0xfa8bc04005201009L, 0xaa78420014820022L, 0x382af20008420060L,
-	    0x517e8e0020aa0046L, 0x00830A0101000500L, 0x75ad40050010802L, 0xde16e2000ac5941bL,
+	    0x517e8e0020aa0046L, 0xea3d280110406c20L, 0x75ad40050010802L, 0xde16e2000ac5941bL,
 	    0x5e5c00680028e63L, 0xbfc270500400280L, 0x6b9600c2002186f0L, 0xe831ea0200207041L,
 	    0x152a22860010a600L, 0xc2d6007200344810L, 0x2ec7f67c00074810L, 0xf225770e000a8b5cL,
 	    0x6a08c0028880062bL, 0x8fb22000c4c01003L, 0x16752002c1003303L, 0xcb4790163001001L,
-	    0x1c95003411001801L, 0x240400A000A04080L, 0xbae85a0d24002830L, 0xd9c849095e000c84L,
-	    0x3f1b278440048009L, 0xad1000e01547c001L, 0x9f21a00043010033L, 0x2000025430001805L,
-	    0x1404C4A100110008L, 0x14ca0051142a0018L, 0x16a2c8b03a0c0003L, 0xf367384d05960004L,
+	    0x1c95003411001801L, 0x278a009812003094L, 0xbae85a0d24002830L, 0xd9c849095e000c84L,
+	    0x3f1b278440048009L, 0xad1000e01547c001L, 0x9f21a00043010033L, 0xd5b0620109c20010L,
+	    0xbb4db85e000e0012L, 0x14ca0051142a0018L, 0x16a2c8b03a0c0003L, 0xf367384d05960004L,
 	    0x56cd8a010947a200L, 0x4782028500406200L, 0xf0dc910460034700L, 0x2906e08a00c01200L,
 	    0xab4b60e692007600L, 0x6c76006c38d08200L, 0x58377e17af986c00L, 0xf3d45f24014c8600L,
 	    0xda91c0a082065302L, 0x0440041482204101L, 0x97b500600052c13bL, 0X71bf266a0020404eL,
 	    0xc7760028206d103aL, 0xbbf20048100c4126L, 0x148a3b101627980cL, 0xa4b1440528c3830aL
 	};
-
 	
 	public static long[] bishopMagics = {
 	    0xf15f9fe3eee599e0L, 0xbd18700c82055265L, 0xf6901c1589e19668L, 0xa987df5edf026612L,
@@ -53,6 +56,12 @@ public class MagicBitboards {
 	
 	public static int[][][] rookLookupTable = new int[64][][];
 	public static int[][][] bishopLookupTable = new int[64][][];
+	
+	public static long[] rookMasks = new long[64];
+	public static long[] bishopMasks = new long[64];
+	
+	public static byte[] rookShifts = new byte[64];
+	public static byte[] bishopShifts = new byte[64];
 	
 	private static int getTerminalPoint(int vector1, int current) {
 		if (vector1 == 1) return 6;
@@ -115,9 +124,6 @@ public class MagicBitboards {
 		};
 		
 		for (int[] direction : moveDirections) {
-			int terminalRow = getFullTerminalPoint(direction[0], row);
-			int terminalCol = getFullTerminalPoint(direction[1], col);
-			
 			for (int i = 1; i < 8; i++) {
 				int targetRow = row + (direction[0] * i);
 				int targetCol = col + (direction[1] * i);
@@ -181,9 +187,6 @@ public class MagicBitboards {
 		int square = row * 8 + col;
 		
 		for (int[] direction : moveDirections) {
-			int terminalRow = getTerminalPoint(direction[0], row);
-			int terminalCol = getTerminalPoint(direction[1], col);
-			
 			for (int i = 1; i < 8; i++) {
 				int targetRow = row + (direction[0] * i);
 				int targetCol = col + (direction[1] * i);
@@ -216,10 +219,12 @@ public class MagicBitboards {
 			int[] blockerLocations = getSetBits(blockerMask);
 			int numBlockers = blockerLocations.length;
 			int numPermutations = 1 << numBlockers;
-			int shift = 64 - numBlockers;
+			byte shift = (byte)(64 - numBlockers);
 			long magic = rookMagics[square];
 			
 			rookLookupTable[square] = new int[numPermutations][];
+			rookMasks[square] = blockerMask;
+			rookShifts[square] = shift;
 			
 			for (int j = 0; j < numPermutations; j++) {
 				long permutation = 0L;
@@ -259,10 +264,12 @@ public class MagicBitboards {
 			int[] blockerLocations = getSetBits(blockerMask);
 			int numBlockers = blockerLocations.length;
 			int numPermutations = 1 << numBlockers;
-			int shift = 64 - numBlockers;
+			byte shift = (byte)(64 - numBlockers);
 			long magic = bishopMagics[square];
 			
 			bishopLookupTable[square] = new int[numPermutations][];
+			bishopMasks[square] = blockerMask;
+			bishopShifts[square] = shift;
 			
 			for (int j = 0; j < numPermutations; j++) {
 				long permutation = 0L;
@@ -321,6 +328,7 @@ public class MagicBitboards {
 
 
 	                int bestAttempt = -1;
+	                long bestLong = -1;
 	                long startTime = System.nanoTime();
 	                
 	                for (int attempt = 0; attempt < 500000000; attempt++) {
@@ -328,10 +336,8 @@ public class MagicBitboards {
 	                    Set<Integer> foundIndexes = new HashSet<Integer>();
 	                    boolean success = true;
 
-
 	                    for (int j = 0; j < numPermutations; j++) {
 	                        long permutation = 0L;
-
 
 	                        for (int k = 0; k < numBlockers; k++) {
 	                            if (((j >> k) & 1L) != 0) {
@@ -339,14 +345,13 @@ public class MagicBitboards {
 	                            }
 	                        }
 
-
 	                        long product = permutation * magic;
 	                        int hashIndex = (int)((product >>> shift));
-
 
 	                        if (foundIndexes.contains(hashIndex)) {
 	                            success = false;
 	                            if (j > bestAttempt) {
+	                            	bestLong = magic;
 	                                bestAttempt = j;
 	                            }
 	                            break;
@@ -354,7 +359,6 @@ public class MagicBitboards {
 	                            foundIndexes.add(hashIndex);
 	                        }
 	                    }
-
 
 	                    if (success) {
 	                        long endTime = System.nanoTime();
@@ -381,8 +385,8 @@ public class MagicBitboards {
 
 
 	                    if (attempt % 10000000 == 0) {
-	                        String progress = String.format("[%d][%s] %d / %d, Attempt %d", 
-	                            square, (isRook ? "Rook" : "Bishop"), bestAttempt, numPermutations, attempt);
+	                        String progress = String.format("[%d][%s] %d / %d, (0x%sL) Attempt %d", 
+	                            square, (isRook ? "Rook" : "Bishop"), bestAttempt, numPermutations, Long.toHexString(bestLong), attempt);
 	                        System.out.println(progress);
 	                        
 	                        // Also log progress to file
@@ -435,6 +439,27 @@ public class MagicBitboards {
 		}
 		
 		return Arrays.copyOf(setBits, amount);
+	}
+	
+	public static long[][] pawnAttackMasks = new long[2][64];
+	public static void initPawnAttackMasks() {
+		// Pawn Mask 101 : 5
+		
+		for (int color = 0; color <= 1; color++) {
+			int direction = (color == 0) ? 1 : -1;
+			
+			for (int square = 0; square < 64; square++) {
+				int row = square / 8;
+				int col = square % 8;
+				
+				long mask = 0L;
+				
+				if (withinBounds((byte)(row + direction), (byte)(col - 1), 0, 7)) mask |= (1L << (square + (direction * 7)));
+				if (withinBounds((byte)(row + direction), (byte)(col + 1), 0, 7)) mask |= (1L << (square + (direction * 9)));
+				
+				pawnAttackMasks[color][square] = mask;
+			}
+		}
 	}
 	
 	private static long[][] lines = new long[64][64];

@@ -5,7 +5,15 @@ import java.util.Arrays;
 
 // Note: These moves only have the from (6 bits) and to (6 bits) defined, OR in piece (4 bits), captured (4 bits), isPromotion (4 bits), isEnPassant (4 bits), isCaslte (4 bits) in the 32 bit range
 public class PrecompMoves {
-	public static HashMap<String, int[][]> precomputedMoves = new HashMap<String, int[][]>();
+	public static int[][][] precomputedMoves = new int[6][64][];
+	// 0 - whitePawnPushes
+	// 1 - blackPawnPushes
+	// 2 - whitePawnCaptures
+	// 3 - blackPawnCaptures
+	// 4 - knightMoves
+	// 5 - kingMoves
+	
+	public static long[][] precomputedMasks = new long[1][64];
 	
 	private static boolean withinBounds(byte row, byte col) {
 		if (row < 0 || row > 7) return false;
@@ -102,7 +110,8 @@ public class PrecompMoves {
 				{-1, -2}, {-1, 2}, {1, -2}, {1, 2},
 			};
 			
-			ArrayList<Integer> moves = new ArrayList<Integer>();
+			int[] moves = new int[8];
+			int moveCount = 0;
 			
 			for (byte[] vector : vectors) {
 				byte targetRow = (byte)(row + vector[0]);
@@ -112,22 +121,19 @@ public class PrecompMoves {
 				if (!withinBounds(targetRow, targetCol)) continue;
 				int move = square;
 				move |= (targetSquare << 6);
-				moves.add(move);
+				moves[moveCount++] = move;
 			}
 			
-			int[] primitiveMoves = new int[moves.size()];
-			for (int i = 0; i < moves.size(); i++) {
-				primitiveMoves[i] = moves.get(i);
-			}
-			
-			knightMoves[square] = primitiveMoves;
+			knightMoves[square] = Arrays.copyOf(moves, moveCount);
 		}
 		
 		// Kings
 		int[][] kingMoves = new int[64][];
+		
 		for (byte square = 0; square < 64; square++) {
 			byte row = (byte)(Math.floor(square / 8));
 			byte col = (byte)(square % 8);
+			long mask = 0L;
 			
 			byte[][] vectors = {
 				{-1, 0}, {1, 0}, {0, -1}, {0, 1},
@@ -146,6 +152,9 @@ public class PrecompMoves {
 				
 				int move = square;
 				move |= (targetSquare << 6);
+				mask |= (1L << targetSquare);
+				
+				precomputedMasks[0][square] = mask;
 				
 				moves[moveCount++] = move;
 			}
@@ -153,12 +162,11 @@ public class PrecompMoves {
 			kingMoves[square] = Arrays.copyOf(moves, moveCount);
 		}
 		
-		precomputedMoves.put("whitePawnPushes", whitePawnPushes);
-		precomputedMoves.put("blackPawnPushes", blackPawnPushes);
-		precomputedMoves.put("whitePawnCaptures", whitePawnCaptures);
-		precomputedMoves.put("blackPawnCaptures", blackPawnCaptures);
-		
-		precomputedMoves.put("knightMoves", knightMoves);
-		precomputedMoves.put("kingMoves", kingMoves);
+		precomputedMoves[0] = whitePawnPushes;
+		precomputedMoves[1] = blackPawnPushes;
+		precomputedMoves[2] = whitePawnCaptures;
+		precomputedMoves[3] = blackPawnCaptures;
+		precomputedMoves[4] = knightMoves;
+		precomputedMoves[5] = kingMoves;
 	}
 }

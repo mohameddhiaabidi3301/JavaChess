@@ -58,7 +58,6 @@ public class LegalityCheck {
 		Arrays.fill(pinBoard, -1);
 		
 		int kingPosition = (colorId == 0) ? Position.whiteKingPos : Position.blackKingPos;
-		int[][] opponentAttacks = (colorId == 0) ? Position.attacks[1] : Position.attacks[0];
 		long myPieces = (colorId == 0) ? Position.whiteOccupied : Position.blackOccupied;
 		
 		for (int i = 0; i < cardinals.length; i++) {
@@ -79,20 +78,28 @@ public class LegalityCheck {
 			
 			if (myPiecesOnLine.length > 0 && attackerPiecesOnLine.length > 0) {
 				final int ix = i;
-				int[] sortedMy = Arrays.stream(myPiecesOnLine).boxed()
-				        .sorted(Comparator.comparingInt(piece -> kingBlockerOrder[kingPosition][ix][piece]))
-				        .mapToInt(j -> j)
-				        .toArray();
 				
-				int[] sortedOpponent = Arrays.stream(attackerPiecesOnLine).boxed()
-						.sorted(Comparator.comparingInt(piece -> kingBlockerOrder[kingPosition][ix][piece]))
-						.mapToInt(j -> j)
-						.toArray();
+				int closestMy = myPiecesOnLine[0];
+				int closestMyOrder = kingBlockerOrder[kingPosition][ix][closestMy];
 				
+				for (int location : myPiecesOnLine) {
+					if (kingBlockerOrder[kingPosition][ix][location] < closestMyOrder) {
+						closestMy = location;
+						closestMyOrder = kingBlockerOrder[kingPosition][ix][location];
+					}
+				}
 				
-				byte closestMy = (byte) sortedMy[0];
-				byte closestOpponent = (byte)sortedOpponent[0];
-				long attackLine = MagicBitboards.lineBB(closestMy, closestOpponent);
+				int closestOpponent = attackerPiecesOnLine[0];
+				int closestOpponentOrder = kingBlockerOrder[kingPosition][ix][closestOpponent];
+				
+				for (int location : attackerPiecesOnLine) {
+					if (kingBlockerOrder[kingPosition][ix][location] < closestOpponentOrder) {
+						closestOpponent = location;
+						closestOpponentOrder = kingBlockerOrder[kingPosition][ix][location];
+					}
+				}
+				
+				long attackLine = MagicBitboards.lineBB((byte)closestMy, (byte)closestOpponent);
 				
 				if (kingBlockerOrder[kingPosition][ix][closestMy] < kingBlockerOrder[kingPosition][ix][closestOpponent]) {					
 					if ((attackLine & Position.allOccupied) == 0 && (MagicBitboards.lineBB((byte)kingPosition, (byte)closestMy) & Position.allOccupied) == 0 ) {
@@ -101,22 +108,6 @@ public class LegalityCheck {
 						} else if (pinBoard[closestMy] != -2) {
 							pinBoard[closestMy] = closestOpponent;
 						}
-						
-						if (Position.engineLookup[closestOpponent] == 0) {
-							DebugRender.renderLong(blockerMask);
-							DebugRender.renderLong(Position.allOccupied);
-							DebugRender.renderLong(attackerCardinals);
-							if (direction[0] != 0 && direction[1] != 0) {
-							    DebugRender.renderLong(Position.cardinalThreats[(colorId == 0) ? 3 : 1]);
-							} else {
-							    DebugRender.renderLong(Position.cardinalThreats[(colorId == 0) ? 2 : 0]);
-							}
-							
-							System.err.println("AttackLine: [From" + closestMy + " to " + closestOpponent + "], Attacker Location?: " + closestOpponent + " King Position: " + kingPosition + " guiLookup: " + Position.guilookupBoard[closestOpponent] + ", bitboard has attacker?: " + ((Position.allOccupied << closestOpponent) & 1L));
-							System.err.println("Color: " + colorId + ", " + "Warning: Detected Pin with no real attacker.");
-						}
-						
-						//System.out.println(String.format("Detected pin for color %d, at square %d: %s, Attacker: %s", colorId, closestMy, Position.guilookupBoard[closestMy], Position.guilookupBoard[closestOpponent]));
 					}
 				}
 			}
@@ -126,26 +117,27 @@ public class LegalityCheck {
 	}
 	
 	public static int[] legal(int[] moveArray) {
+		if (moveArray.length == 0) return moveArray;
+		
 		int[] filteredMoves = new int[moveArray.length];
 		byte legalCount = 0;
 		
+		byte color = (byte)((moveArray[0] >>> 31) & 1);
+		byte from = (byte)(moveArray[0] & 0x3F);
+		byte pieceId = (byte)((moveArray[0] >>> 12) & 0xF);
+		
+		int kingPosition = (color == 0) ? Position.whiteKingPos : Position.blackKingPos;
+		int[][] opponentAttacks = (color == 0) ? Position.attacks[1] : Position.attacks[0];
+		boolean inCheck = opponentAttacks[kingPosition] != null;
+		int[] kingAttackers = opponentAttacks[kingPosition];
+		int[] pinnedPieces = Position.pins[color];
+		
 		for (int i = 0; i < moveArray.length; i++) {
 			int move = moveArray[i];
-			byte from = (byte)(move & 0X3F);
+	
 			byte to = (byte)((move >>> 6) & 0x3F);
-			byte pieceId = (byte)((move >>> 12) & 0xF);
-			byte color = (byte)((move >>> 31) & 1L);
-			
 			boolean isCastle = ((byte)(move >>> 28) & 1L) != 0;
 			byte castleType = (byte)((move >>> 20) & 3L);
-			
-			int kingPosition = (color == 0) ? Position.whiteKingPos : Position.blackKingPos;
-			int[][] opponentAttacks = (color == 0) ? Position.attacks[1] : Position.attacks[0];
-			long myPieces = (color == 0) ? Position.whiteOccupied : Position.blackOccupied;
-			
-			boolean inCheck = opponentAttacks[kingPosition] != null;
-			int[] kingAttackers = opponentAttacks[kingPosition];
-			int[] pinnedPieces = Position.pins[color];
 			
 			if (pieceId == 6 || pieceId == 12) { // King Move
 				if (opponentAttacks[to] != null) {

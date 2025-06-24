@@ -1,5 +1,8 @@
 package debug;
 import javax.swing.*;
+
+import engine.Position;
+
 import java.awt.*;
 import java.util.Set;
 import java.util.HashSet;
@@ -22,6 +25,36 @@ public class DebugRender {
 				long bitStatus = (long)(bits & (1L << square));
 				Color tileColor = (bitStatus != 0) ? Color.white : Color.black;
 				Color borderColor = (bitStatus != 0) ? Color.black : Color.white;
+				
+				JPanel newTile = new Tile(tileColor, borderColor, msg);
+				board.add(newTile);
+			}
+		}
+		
+		mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		mainFrame.setVisible(true);
+	}
+	
+	public static void renderAttackers(int color) {
+		JFrame mainFrame = new JFrame("Debug");
+		mainFrame.setSize(new Dimension(480, 480));
+		
+		int[][] attackers = Position.attacks[color];
+		
+		JPanel board = new JPanel();
+		mainFrame.add(board);
+		board.setSize(new Dimension(480, 480));
+		board.setLayout(new GridLayout(8, 8));
+		
+		for (int row = 0; row < 8; row++) {
+			for (int col = 0; col < 8; col++) {
+				int square = 63 - (row * 8 + (7 - col));
+				int amount = (attackers[square] != null ? attackers[square].length : 0);
+				
+				String msg = Integer.toString(amount);
+
+				Color tileColor = (amount != 0) ? Color.white : Color.black;
+				Color borderColor = (amount != 0) ? Color.black : Color.white;
 				
 				JPanel newTile = new Tile(tileColor, borderColor, msg);
 				board.add(newTile);

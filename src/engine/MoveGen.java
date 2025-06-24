@@ -6,13 +6,10 @@ import java.util.Arrays;
 public class MoveGen {
 	public static int[] pseudoPawns(byte row, byte col, byte color, boolean includeSelfCaptures) {
 		byte square = (byte)(row * 8 + col);
-		String originBoard = (color == 0) ? "whitePawns" : "blackPawns";
+		byte originBoardKey = (byte)((color == 0) ? 1 : 7);
 		
-		String pushKey = (color == 0) ? "whitePawnPushes" : "blackPawnPushes";
-		int[] pushes = PrecompMoves.precomputedMoves.get(pushKey)[square];
-		
-		String captureKey = (color == 0) ? "whitePawnCaptures" : "blackPawnCaptures";
-		int[] captures = PrecompMoves.precomputedMoves.get(captureKey)[square];
+		int[] pushes = PrecompMoves.precomputedMoves[color == 0 ? 0 : 1][square];
+		int[] captures = PrecompMoves.precomputedMoves[color == 0 ? 2 : 3][square];
 		
 		int[] moves = new int[4];
 		int moveCount = 0;
@@ -24,11 +21,9 @@ public class MoveGen {
 		for (int move : pushes) {
 			byte from = (byte)(move & 0x3F);
 			byte to = (byte)((move >>> 6) & 0x3F);
-			byte targetRow = (byte)(to / 8);
+			byte targetRow = (byte)(to >> 3);
 			
 			if ((Position.allOccupied & (1L << to)) != 0) continue;
-			
-			byte originBoardKey = Position.nameKeyConversion.get(originBoard);
 			byte targetBoardKey = 0; // Has to be zero, since if there's a capture its discarded
 			
 			byte dist = (byte)(Math.abs(to-from));
@@ -60,11 +55,9 @@ public class MoveGen {
 		}
 		
 		for (int move : captures) {
-			byte from = (byte)(move & 0x3F);
 			byte to = (byte)((move >>> 6) & 0x3F);
-			byte toRow = (byte)(to / 8);
+			byte toRow = (byte)(to >> 3);
 			
-			byte originBoardKey = Position.nameKeyConversion.get(originBoard);
 			long opponentBits = (color == 0) ? Position.blackOccupied : Position.whiteOccupied;
 			boolean isEnPassant = (to == Position.enPassantTarget);
 			
@@ -88,9 +81,8 @@ public class MoveGen {
 	
 	public static int[] pseudoKnights(byte row, byte col, byte color, boolean includeSelfCaptures) {
 		byte square = (byte)(row * 8 + col);
-		int[] precomputedMoves = PrecompMoves.precomputedMoves.get("knightMoves")[square];
-		String originBoard = (color == 0) ? "whiteKnights" : "blackKnights";
-		byte originBoardKey = (byte)Position.nameKeyConversion.get(originBoard);
+		int[] precomputedMoves = PrecompMoves.precomputedMoves[4][square];
+		byte originBoardKey = (byte)(color == 0 ? 2 : 8);
 		
 		int[] moves = new int[precomputedMoves.length];
 		int moveCount = 0;
@@ -117,9 +109,8 @@ public class MoveGen {
 	
 	public static int[] pseudoKings(byte row, byte col, byte color, boolean includeSelfCaptures) {
 		byte square = (byte)(row * 8 + col);
-		int[] precomputedMoves = PrecompMoves.precomputedMoves.get("kingMoves")[square];
-		String originBoard = (color == 0) ? "whiteKing" : "blackKing";
-		byte originBoardKey = (byte)Position.nameKeyConversion.get(originBoard);
+		int[] precomputedMoves = PrecompMoves.precomputedMoves[5][square];
+		byte originBoardKey = (byte)(color == 0 ? 6 : 12);
 		
 		int[] moves = new int[precomputedMoves.length + 2];
 		int moveCount = 0;
@@ -185,26 +176,25 @@ public class MoveGen {
 		byte square = (byte)(row * 8 + col);
 		long myOccupied = (color == 0) ? Position.whiteOccupied : Position.blackOccupied;
 		
-		long blockerMask = MagicBitboards.genBishopBlockerMask(row, col);
-		int blockerCount = (MagicBitboards.getSetBits(blockerMask)).length;
+		long blockerMask = MagicBitboards.bishopMasks[square];
+		byte shift = MagicBitboards.bishopShifts[square];
 		
 		long relevantBlockerMask = (blockerMask & Position.allOccupied);
 		
 		long magic = MagicBitboards.bishopMagics[square];
 		long product = (relevantBlockerMask * magic);
-		int hashIndex = (int)(product >>> (64 - blockerCount));
+		int hashIndex = (int)(product >>> shift);
 		
 		int[] precomputedMoves = MagicBitboards.bishopLookupTable[square][hashIndex];
 		int[] finalMoves = new int[precomputedMoves.length];
 		byte moveCount = 0;
 		
-		String originBoard = (color == 0) ? "whiteBishops" : "blackBishops";
+		byte fromKey = (byte)((color == 0) ? 3 : 9);
 		
 		for (int move : precomputedMoves) {
 			byte to = (byte)((move >>> 6) & 0x3F);
 			
 			if ((myOccupied & (1L << to)) == 0 || includeSelfCaptures) {
-				byte fromKey = Position.nameKeyConversion.get(originBoard);
 				byte toKey = Position.engineLookup[to];
 				
 				move |= (fromKey << 12);
@@ -223,26 +213,25 @@ public class MoveGen {
 		byte square = (byte)(row * 8 + col);
 		long myOccupied = (color == 0) ? Position.whiteOccupied : Position.blackOccupied;
 		
-		long blockerMask = MagicBitboards.genRookBlockerMask(row, col);
-		int blockerCount = MagicBitboards.getSetBits(blockerMask).length;
+		long blockerMask = MagicBitboards.rookMasks[square];
+		byte shift = MagicBitboards.rookShifts[square];
 		
 		long relevantBlockerMask = blockerMask & Position.allOccupied;
 				
 		long magic = MagicBitboards.rookMagics[square];
 		long product = (relevantBlockerMask * magic);
-		int hashIndex = (int)(product >>> (64 - blockerCount));
+		int hashIndex = (int)(product >>> shift);
 		
 		int[] precomputedMoves = MagicBitboards.rookLookupTable[square][hashIndex];
 		int[] finalMoves = new int[precomputedMoves.length];
 		byte moveCount = 0;
 		
-		String originBoard = (color == 0) ? "whiteRooks" : "blackRooks";
+		byte fromKey = (byte)((color == 0) ? 4 : 10);
 		
 		for (int move : precomputedMoves) {
 			byte to = (byte)((move >>> 6) & 0x3F);
 			
 			if ((myOccupied & (1L << to)) == 0 || includeSelfCaptures) {
-				byte fromKey = Position.nameKeyConversion.get(originBoard);
 				byte toKey = Position.engineLookup[to];
 				
 				move |= (fromKey << 12);
