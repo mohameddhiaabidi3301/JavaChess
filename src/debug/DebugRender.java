@@ -35,11 +35,11 @@ public class DebugRender {
 		mainFrame.setVisible(true);
 	}
 	
-	public static void renderAttackers(int color) {
+	public static void renderAttackers(int color, Position chessPosition) {
 		JFrame mainFrame = new JFrame("Debug");
 		mainFrame.setSize(new Dimension(480, 480));
 		
-		int[][] attackers = Position.attacks[color];
+		int[][] attackers = chessPosition.attacks[color];
 		
 		JPanel board = new JPanel();
 		mainFrame.add(board);

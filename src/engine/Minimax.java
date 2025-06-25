@@ -4,6 +4,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntUnaryOperator;
 
 import debug.DebugRender;
@@ -54,7 +55,7 @@ public class Minimax {
 		return score;
 	}
 	
-	public static void sortByScore(int[] arr, int[] previousBestMove, int depth, int ply) {
+	public static void sortByScore(int[] arr, int[] previousBestMove, int depth, int ply, int[][] killerMoves) {
 	    int n = arr.length;
 	    int[] scores = new int[n];
 
@@ -81,18 +82,15 @@ public class Minimax {
 	    }
 	}
 	
-	private static final int FLAG_EXACT = 0;
-	private static final int FLAG_LOWERBOUND = 1; // (beta cutoff), cache value must be >= beta
-	private static final int FLAG_UPPERBOUND = 2; // (alpha cutoff), cache value must be <= alpha
-	private static final int FLAG_TIMEOUT = 3;
+	public static final int FLAG_EXACT = 0;
+	public static final int FLAG_LOWERBOUND = 1; // (beta cutoff), cache value must be >= beta
+	public static final int FLAG_UPPERBOUND = 2; // (alpha cutoff), cache value must be <= alpha
+	public static final int FLAG_TIMEOUT = 3;
 	
 	// minDepth takes priority, if there is extra time it will run until maxTime (ms)
 	private static int[] iterativeDeepening(int minDepth, int maxTime, boolean isMaximizing) {
 		long startTime = System.nanoTime();
 		
-		// Clear killer moves
-		Arrays.stream(killerMoves).forEach(km -> Arrays.fill(km, -1));
-
 		int[] previousBestMove = null;
 		for (int currentDepth = 0; currentDepth >= 0; currentDepth++) {
 			long timeElapsedMs = (System.nanoTime() - startTime) / 1_000_000;
@@ -101,7 +99,7 @@ public class Minimax {
 				break;
 			}
 			
-			int[] newMove = minimax(currentDepth, isMaximizing, Integer.MIN_VALUE, Integer.MAX_VALUE, previousBestMove, startTime, maxTime, 0, 0);
+			int[] newMove = initiateRootThreadedSearch(currentDepth, isMaximizing, Integer.MIN_VALUE, Integer.MAX_VALUE, previousBestMove, startTime, maxTime, 0, 0);
 			
 			if (newMove[2] == FLAG_TIMEOUT) {
 				System.out.println("Timeout on move: " + Arrays.toString(newMove) + " (" + currentDepth + ")");
@@ -116,161 +114,41 @@ public class Minimax {
 		return previousBestMove;
 	}
 	
-	private static final int TT_SIZE = 1 << 22;
-	private static long[] zobristKeys = new long[TT_SIZE];
-	private static int[][] zobristValues = new int[TT_SIZE][4];
+	static final int TT_SIZE = 1 << 22;
+	static long[] zobristKeys = new long[TT_SIZE];
+	static int[][] zobristValues = new int[TT_SIZE][4];
 	
-	private static int[][] killerMoves = new int[128][2];
+	public static AtomicInteger threadsCompleted = new AtomicInteger(0);
+	private static int[] initiateRootThreadedSearch(int depth, boolean isMaximizing, int alpha, int beta, int[] previousBestMove, long itdStartTime, int maxTime, int quiessenceCount, int ply) {
+		threadsCompleted.set(0);
+		
+		int[] legalMoves = Main.globalPosition.getAllLegalMoves((byte)(isMaximizing ? 0 : 1));
+		SearchThread[] threads = new SearchThread[legalMoves.length];
+		for (int i = 0; i < legalMoves.length; i++) {
+			int move = legalMoves[i];
 			
-	private static int[] minimax(int depth, boolean isMaximizing, int alpha, int beta, int[] previousBestMove, long itdStartTime, int maxTime, int quiessenceCount, int ply) {
-		if (depth == 0) {
-			return new int[] {-1, Main.globalPosition.getEval(), -1, depth};
+			SearchThread newThread = new SearchThread(move, depth-1, !isMaximizing, alpha, beta, previousBestMove, itdStartTime, maxTime, quiessenceCount, ply + 1);
+			newThread.start();
+			threads[i] = newThread;
 		}
 		
-		int TT_INDEX = (int)(Main.globalPosition.zobristHash & (TT_SIZE - 1));
-		if (zobristKeys[TT_INDEX] == Main.globalPosition.zobristHash) {
-			if ((System.nanoTime() - itdStartTime) / 1_000_000 > maxTime) {
-				return new int[] {-1, 0, FLAG_TIMEOUT, depth};
-			}
-			
-			int[] data = Arrays.copyOf(zobristValues[TT_INDEX], 4);
-			int flag = data[2];
-			int cacheScore = data[1];
-			int cacheDepth = data[3];
-			
-			if (depth <= cacheDepth) {
-				if (flag == FLAG_EXACT) {
-					return data;
-				} else if (flag == FLAG_LOWERBOUND && cacheScore >= beta) {
-					return data;
-				} else if (flag == FLAG_UPPERBOUND && cacheScore <= alpha) {
-					return data;
-				}
+		while (threadsCompleted.get() != legalMoves.length) {
+			try {
+				Thread.sleep(100L);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
 			}
 		}
 		
-		boolean inEndGame = (Long.bitCount(Main.globalPosition.whiteOccupied) + Long.bitCount(Main.globalPosition.blackOccupied)) <= 14;
-		boolean usInCheck = (isMaximizing ? Main.globalPosition.attacks[1][Main.globalPosition.whiteKingPos] != null : Main.globalPosition.attacks[0][Main.globalPosition.blackKingPos] != null);
-	
-		if (depth >= 3 && quiessenceCount == 0 && !usInCheck && !inEndGame) {
-			if ((System.nanoTime() - itdStartTime) / 1_000_000 > maxTime) {
-				return new int[] {-1, 0, FLAG_TIMEOUT, depth};
-			}
+		int[] bestMove = new int[] {-1, (isMaximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE), 0, depth};
+		for (int i = 0; i < threads.length; i++) {
+			SearchThread thread = threads[i];
+			int[] move = thread.getBestMove();
 			
-			int R = 2; // Depth Reduction
-			Main.globalPosition.toggleNullMove(); // Symmetric
-			
-			int[] nullScore = minimax(depth - R - 1, !isMaximizing, -beta, -beta + 1, null, itdStartTime, maxTime, quiessenceCount, ply + 1);
-			Main.globalPosition.toggleNullMove();
-			
-			if (nullScore[1] >= beta) {
-				return new int[] {-1, beta, FLAG_LOWERBOUND, depth}; // Beta cutoff
-			}
-		}
-		
-		int[] moves = (isMaximizing) ? Main.globalPosition.getAllLegalMoves((byte)0) : Main.globalPosition.getAllLegalMoves((byte)1);
-		int[] bestMove = new int[] {-1, (isMaximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE), -1, depth};
-		sortByScore(moves, previousBestMove, depth, ply); // Order the PBM first because its likely good
-		
-		if (moves.length == 0) {
-			if (usInCheck) {
-				return new int[] {-1, isMaximizing ? -100_000 + ply : 100_000 - ply, -1, depth};
-			} else {
-				return new int[] {-1, 0, -1, depth};
-			}
-		}
-		
-		int cutoffFlag = FLAG_EXACT; // Default
-		for (int i = 0; i < moves.length; i++) {
-			int move = moves[i];
-			byte to = (byte)((move >>> 6) & 0x3F);
-			boolean isCapture = ((move >>> 16) & 0xF) != 0;
-			boolean isPromotion = ((move >>> 27) & 1) != 0;
-			//boolean isHighValuePiece = (((move >>> 12) & 0xF) % 6) >= 4;
-			
-			boolean extendQuiessence = ((isCapture || isPromotion) && quiessenceCount < 4);
-			int nextDepth = (extendQuiessence) ? depth : depth - 1;
-			int nextQuiessence = (extendQuiessence) ? quiessenceCount + 1 : quiessenceCount;
-			
-			if ((System.nanoTime() - itdStartTime) / 1_000_000 > maxTime) {
-				return new int[] {-1, 0, FLAG_TIMEOUT, depth};
-			}
-			
-			if (!isPromotion) {
-				Main.globalPosition.makeMove(move, true);
-				
-				int[] score = minimax(nextDepth, !isMaximizing, alpha, beta, null, itdStartTime, maxTime, nextQuiessence, ply + 1);
-				Main.globalPosition.unmakeMove(move);
-				
-				if (isMaximizing) {
-					 if (score[1] > bestMove[1]) {
-						 bestMove[1] = score[1];
-						 bestMove[0] = move;
-						 alpha = Math.max(alpha, score[1]);
-					 }
-				} else {
-					if (score[1] < bestMove[1]) {
-						bestMove[1] = score[1];
-						bestMove[0] = move;
-						beta = Math.min(beta, score[1]);
-					}
-				}
-				
-				if (beta <= alpha) {
-					cutoffFlag = (isMaximizing) ? FLAG_LOWERBOUND : FLAG_UPPERBOUND;
-					
-					if (!isCapture && cutoffFlag == FLAG_LOWERBOUND) { // Beta cutoff on non-capture
-						if (killerMoves[ply][0] != move) {
-					        killerMoves[ply][1] = killerMoves[ply][0];
-					        killerMoves[ply][0] = move;
-					    }
-					}
-					
-					break;
-				};
-			} else {
-				byte[] pkKeys = (isMaximizing ? Position.whitePromotions : Position.blackPromotions);
-				
-				for (byte key : pkKeys) {
-					int promotionMove = (move & ~(0xF << 22)) | (key << 22);
-					
-					Main.globalPosition.makeMove(promotionMove, true);
-					
-					int[] score = minimax(nextDepth, !isMaximizing, alpha, beta, null, itdStartTime, maxTime, nextQuiessence, ply + 1);
-					Main.globalPosition.unmakeMove(promotionMove);
-					
-					if (isMaximizing) {
-						 if (score[1] > bestMove[1]) {
-							 bestMove[1] = score[1];
-							 bestMove[0] = promotionMove;
-							 alpha = Math.max(alpha, score[1]);
-						 }
-					} else {
-						if (score[1] < bestMove[1]) {
-							bestMove[1] = score[1];
-							bestMove[0] = promotionMove;
-							beta = Math.min(beta, score[1]);
-						}
-					}
-					
-					if (beta <= alpha) {
-						cutoffFlag = (isMaximizing) ? FLAG_LOWERBOUND : FLAG_UPPERBOUND;
-						break;
-					};
-				}
-			}
-		}
-		
-		bestMove[2] = cutoffFlag;
-		
-		if (bestMove[2] != FLAG_TIMEOUT) {
-			if (zobristKeys[TT_INDEX] == Main.globalPosition.zobristHash) {
-				if (zobristValues[TT_INDEX][3] <= depth) {
-					zobristValues[TT_INDEX] = bestMove;
-				}
-			} else {
-				zobristKeys[TT_INDEX] = Main.globalPosition.zobristHash;
-				zobristValues[TT_INDEX] = bestMove;
+			if (isMaximizing && move[1] > bestMove[1]) {
+				bestMove = move;
+			} else if (!isMaximizing && move[1] < bestMove[1]) {
+				bestMove = move;
 			}
 		}
 		
