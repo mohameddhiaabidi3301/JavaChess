@@ -12,7 +12,6 @@ import java.awt.Component;
 import java.util.Arrays;
 import java.util.HashMap;
 
-
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -20,7 +19,7 @@ import javax.swing.SwingUtilities;
 
 import debug.DebugRender;
 import engine.Position;
-import engine.ZobristHash;
+import main.Main;
 import engine.EvaluateBoard;
 import engine.KeyToLegalMoves;
 import engine.Minimax;
@@ -55,12 +54,12 @@ public class Board {
 		if (row < 0 || row > 7) return null;
 		if (col < 0 || col > 7) return null;
 		
-		String color = (Position.engineLookup[square] <= 6) ? "white" : "black";
+		String color = (Main.globalPosition.engineLookup[square] <= 6) ? "white" : "black";
 		byte colorKey = (byte)((color == "white") ? 0 : 1);
 		
 		int[] moves = new int[0];
-		if (Position.engineLookup[square] != 0) {
-			moves = KeyToLegalMoves.pseudoMap[Position.engineLookup[square] - 1].apply((byte)row, (byte)col, (byte)colorKey, false);
+		if (Main.globalPosition.engineLookup[square] != 0) {
+			moves = KeyToLegalMoves.pseudoMap[Main.globalPosition.engineLookup[square] - 1].apply((byte)row, (byte)col, (byte)colorKey, false, Main.globalPosition);
 		}
 		
 		JPanel component = (JPanel)piecePanel.getComponentAt(clickX, clickY);
@@ -71,7 +70,7 @@ public class Board {
 		}
 		
 		//System.out.println("Clicked at (" + clickX + ", " + clickY + ") [" + row + ", " + col + ", " + square + "], " + Position.lookupBoard.get(square));
-		return new ClickData(row, col, square, Position.guilookupBoard[square], Position.engineLookup[square], color, colorKey, component, moves, component.getX(), component.getY());
+		return new ClickData(row, col, square, Main.globalPosition.guilookupBoard[square], Main.globalPosition.engineLookup[square], color, colorKey, component, moves, component.getX(), component.getY());
 	}
 	
 	private static void renderPreviews(int[] moveArray) {
@@ -97,7 +96,7 @@ public class Board {
 		piecePanel.removeAll();
 		tileFXPanel.removeAll();
 		
-		int lastPlayedMove = Position.lastGuiMove;
+		int lastPlayedMove = Main.globalPosition.lastGuiMove;
 		
 		if (lastPlayedMove != -1) {
 			int lastFrom = ((lastPlayedMove & 0x3F));
@@ -115,7 +114,7 @@ public class Board {
 		}
 
 		for (int square = 0; square < 64; square++) {
-			String piece = Position.guilookupBoard[square];
+			String piece = Main.globalPosition.guilookupBoard[square];
 			if (piece == null || piece.isEmpty()) continue;
 			
 			int row = square / 8;
@@ -137,12 +136,12 @@ public class Board {
 		byte selectionKey = Position.nameKeyConversion.get(selection);
 		
 		waitingForPromotion |= (selectionKey << 22);
-		Position.makeMove(waitingForPromotion, false);
+		Main.globalPosition.makeMove(waitingForPromotion, false);
 		
 		int[] computerMove = Minimax.getComputerMove(5, 5000, false);
 		
 		System.out.println(Arrays.toString(computerMove));			
-		Position.makeMove(computerMove[0], false);
+		Main.globalPosition.makeMove(computerMove[0], false);
 		
 		renderAllPieces();
 		
@@ -177,9 +176,8 @@ public class Board {
 				JPanel newTile = new Tile(tileColor, borderColor, tileSize);
 				tilePanel.add(newTile);
 				
-				Object pieceType = Position.guilookupBoard[63 - square];
+				Object pieceType = Main.globalPosition.guilookupBoard[63 - square];
 				JPanel newPiece = new Piece((String)pieceType, tileSize);
-
 
 				piecePanel.add(newPiece);
 				newPiece.setBounds(col * tileSize, row * tileSize, tileSize, tileSize);
@@ -212,7 +210,7 @@ public class Board {
 				ClickData data = getDataAtPos(clickX, clickY);
 				if (waitingForPromotion != -1) return;
 				if (data == null) return;
-				if (data.colorKey != Position.sideToMove) return;
+				if (data.colorKey != Main.globalPosition.sideToMove) return;
 				if (data.pieceName == null) return;
 				
 				if (data != null && !data.pieceName.isEmpty()) {
@@ -248,11 +246,11 @@ public class Board {
 								
 								foundMatch = true;
 								
-								Position.makeMove(move, false);		
+								Main.globalPosition.makeMove(move, false);		
 								int[] computerMove = Minimax.getComputerMove(5, 5000, false);
 								
 								System.out.println(Arrays.toString(computerMove));			
-								Position.makeMove(computerMove[0], false);
+								Main.globalPosition.makeMove(computerMove[0], false);
 								
 								renderAllPieces();
 								

@@ -2,18 +2,18 @@ package engine;
 // Utlizes the PSInterface.java
 public class KeyToPseudoMoves {
 	public static final PSInterface[] pseudoMap = new PSInterface[] {
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoPawns(row, col, color, includeSelfCaptures)),
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoKnights(row, col, color, includeSelfCaptures)),
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoBishops(row, col, color, includeSelfCaptures)),
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoRooks(row, col, color, includeSelfCaptures)),
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoQueens(row, col, color, includeSelfCaptures)),
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoKings(row, col, color, includeSelfCaptures)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoPawns(row, col, color, includeSelfCaptures, chessPosition)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoKnights(row, col, color, includeSelfCaptures, chessPosition)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoBishops(row, col, color, includeSelfCaptures, chessPosition)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoRooks(row, col, color, includeSelfCaptures, chessPosition)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoQueens(row, col, color, includeSelfCaptures, chessPosition)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoKings(row, col, color, includeSelfCaptures, chessPosition)),
 		
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoPawns(row, col, color, includeSelfCaptures)),
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoKnights(row, col, color, includeSelfCaptures)),
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoBishops(row, col, color, includeSelfCaptures)),
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoRooks(row, col, color, includeSelfCaptures)),
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoQueens(row, col, color, includeSelfCaptures)),
-		(row, col, color, includeSelfCaptures) -> (MoveGen.pseudoKings(row, col, color, includeSelfCaptures)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoPawns(row, col, color, includeSelfCaptures, chessPosition)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoKnights(row, col, color, includeSelfCaptures, chessPosition)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoBishops(row, col, color, includeSelfCaptures, chessPosition)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoRooks(row, col, color, includeSelfCaptures, chessPosition)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoQueens(row, col, color, includeSelfCaptures, chessPosition)),
+		(row, col, color, includeSelfCaptures, chessPosition) -> (MoveGen.pseudoKings(row, col, color, includeSelfCaptures, chessPosition)),
 	};
 }

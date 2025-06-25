@@ -5,77 +5,50 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.IntStream;
 import debug.DebugRender;
 public class Position {
-	// FOR GUI ONLY, NOT FOR ENGINE
-	public static String[] guilookupBoard = {
-		"", "", "", "", "", "", "", "",
-		"", "", "", "", "", "", "", "",
-	    "", "", "", "", "", "", "", "",
-	    "", "", "", "", "", "", "", "",
-	    "", "", "", "", "", "", "", "",
-	    "", "", "", "", "", "", "", "",
-	    "", "", "", "", "", "", "", "",
-	    "", "", "", "", "", "", "", "",
-	};
+	// Static Fields, Global data
+	public static final byte[] whitePromotions = {5, 4, 2, 3};
+	public static final byte[] blackPromotions = {11, 10, 8, 9};
 	
-	public static byte[] engineLookup = {
-		0, 0, 0, 0, 0, 0, 0, 0,     // empty
-		0, 0, 0, 0, 0, 0, 0, 0,     // empty
-	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
-	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
-	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
-	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
-	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
-	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
-	};
-	public static long[] bitboards = {
-	    0L,                                      // 0 - no piece
-	    0L,                         // 1 - whitePawns
-	    0L,                   // 2 - whiteKnights
-	    0L,                   // 3 - whiteBishops
-	    0L,                   // 4 - whiteRooks
-	    0L,                               // 5 - whiteQueens
-	    0L,                               // 6 - whiteKing
-	   
-	    0L,                             // 7 - blackPawns
-	    0L,                 // 8 - blackKnights
-	    0L,                 // 9 - blackBishops
-	    0L,                 // 10 - blackRooks
-	    0L,                              // 11 - blackQueens
-	    0L,                              // 12 - blackKing
-	};
-	
-	public static long[] cardinalThreats = {
-		0L, // whiteRookSliders - rooks | queens
-		0L, // whiteBishopSliders - bishops | queens
+	public static String[] allNames = {"whitePawns", "whiteKnights", "whiteBishops", "whiteRooks", "whiteQueens", "whiteKing", "blackPawns", "blackKnights", "blackBishops", "blackRooks", "blackQueens", "blackKing"};
+	public static HashMap<String, Byte> nameKeyConversion = new HashMap<String, Byte>();
+	static {
+		// 0 REPRESENTS NO BOARD, subtract index by 1 to access valid board in allNames;
+		nameKeyConversion.put("whitePawns", (byte)1);
+		nameKeyConversion.put("whiteKnights", (byte)2);
+		nameKeyConversion.put("whiteBishops", (byte)3);
+		nameKeyConversion.put("whiteRooks", (byte)4);
+		nameKeyConversion.put("whiteQueens", (byte)5);
+		nameKeyConversion.put("whiteKing", (byte)6);
 		
-		0L, // blackRookSliders - rooks | queens
-		0L, // blackBishopSliders - bishops | queens
-	};
+		nameKeyConversion.put("blackPawns", (byte)7);
+		nameKeyConversion.put("blackKnights", (byte)8);
+		nameKeyConversion.put("blackBishops", (byte)9);
+		nameKeyConversion.put("blackRooks", (byte)10);
+		nameKeyConversion.put("blackQueens", (byte)11);
+		nameKeyConversion.put("blackKing", (byte)12);
+	}
 	
-	public static byte[] whitePromotions = {5, 4, 2, 3};
-	public static byte[] blackPromotions = {11, 10, 8, 9};
-	
-	public static long whiteOccupied = 0L;
-	public static long blackOccupied = 0L;
-	public static long allOccupied = 0L;
-	
-	public static byte whiteKingPos = 4;
-	public static byte blackKingPos = 60;
-	public static byte sideToMove = 0;
-	
-	public static byte enPassantTarget = -1;
-	public static byte enPassantColor = -1;
-	
-	public static boolean[] castlingRights = {
-		false,
-		false,
-		false,
-		false,
-	};
+	private static final HashMap<Character, Integer> fenLookup = new HashMap<Character, Integer>();
+	static {
+		fenLookup.put('P', 1);
+		fenLookup.put('N', 2);
+		fenLookup.put('B', 3);
+		fenLookup.put('R', 4);
+		fenLookup.put('Q', 5);
+		fenLookup.put('K', 6);
+		
+		fenLookup.put('p', 7);
+		fenLookup.put('n', 8);
+		fenLookup.put('b', 9);
+		fenLookup.put('r', 10);
+		fenLookup.put('q', 11);
+		fenLookup.put('k', 12);
+	}
 	
 	public static String logMove(int move) {
 		if (move == -1) {
@@ -97,22 +70,143 @@ public class Position {
 				allNames[pieceType - 1], ogRow, ogCol, toRow, toCol, (captureType != 0) ? "Captures " + allNames[captureType - 1] : "");
 	}
 	
-	public static void loadPositionFromFEN(String FEN) {
-		// rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq
-		HashMap<Character, Integer> lookup = new HashMap<Character, Integer>();
-		lookup.put('P', 1);
-		lookup.put('N', 2);
-		lookup.put('B', 3);
-		lookup.put('R', 4);
-		lookup.put('Q', 5);
-		lookup.put('K', 6);
+	// End of static fields
+	public Position(String fenString) { // Initializes a Position w FEN (Use Clone Method for Engine)
+		loadPositionFromFEN(fenString);
+		initOccupancy();
 		
-		lookup.put('p', 7);
-		lookup.put('n', 8);
-		lookup.put('b', 9);
-		lookup.put('r', 10);
-		lookup.put('q', 11);
-		lookup.put('k', 12);
+		PrecompMoves.init();
+		initializeZobristHash();
+		
+		attacks[0] = getAttacks((byte)0, true);
+		attacks[1] = getAttacks((byte)1, true);
+		
+		pins[0] = LegalityCheck.getPinnedPieces((byte)0, this);
+		pins[1] = LegalityCheck.getPinnedPieces((byte)1, this);
+		
+		attacks[0] = getAttacks((byte)0, false);
+		attacks[1] = getAttacks((byte)1, false);
+	}
+	
+	public Position() {}
+	public Position clonePosition() {
+		Position pos = new Position();
+		
+		pos.zobristHash = zobristHash;
+		pos.sideToMove = sideToMove;
+		pos.enPassantTarget = enPassantTarget;
+		pos.enPassantColor = enPassantColor;
+		
+		pos.castlingRights = new boolean[] {
+			castlingRights[0],
+			castlingRights[1],
+			castlingRights[2],
+			castlingRights[3],
+		};
+		
+		pos.bitboards = new long[13];
+		System.arraycopy(bitboards, 0, pos.bitboards, 0, 13);
+		
+		pos.engineLookup = new byte[64];
+		System.arraycopy(engineLookup, 0, pos.engineLookup, 0, 64);
+		
+		pos.guilookupBoard = new String[64];
+		System.arraycopy(guilookupBoard, 0, pos.guilookupBoard, 0, 64);
+		
+		pos.attacks = new int[2][][];
+		pos.pins = new int[2][];
+		
+		for (int i = 0; i < attacks.length; i++) {
+			pos.attacks[i] = new int[attacks[i].length][];
+			
+			for (int j = 0; j < attacks[i].length; j++) {
+				if (attacks[i][j] == null) continue;
+				
+				pos.attacks[i][j] = new int[attacks[i][j].length];
+				System.arraycopy(attacks[i][j], 0, pos.attacks[i][j], 0, attacks[i][j].length);
+			}
+		}
+		
+		for (int i = 0; i < pins.length; i++) {
+			pos.pins[i] = new int[pins[i].length];
+			System.arraycopy(pins[i], 0, pos.pins[i], 0, pos.pins[i].length);
+		}
+		
+		pos.initOccupancy();
+		
+		return pos;
+	}
+	
+	// FOR GUI ONLY, NOT FOR ENGINE
+	public String[] guilookupBoard = {
+		"", "", "", "", "", "", "", "",
+		"", "", "", "", "", "", "", "",
+	    "", "", "", "", "", "", "", "",
+	    "", "", "", "", "", "", "", "",
+	    "", "", "", "", "", "", "", "",
+	    "", "", "", "", "", "", "", "",
+	    "", "", "", "", "", "", "", "",
+	    "", "", "", "", "", "", "", "",
+	};
+	
+	public byte[] engineLookup = {
+		0, 0, 0, 0, 0, 0, 0, 0,     // empty
+		0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	    0, 0, 0, 0, 0, 0, 0, 0,     // empty
+	};
+	
+	public long[] bitboards = {
+	    0L,                                      // 0 - no piece
+	    0L,                         // 1 - whitePawns
+	    0L,                   // 2 - whiteKnights
+	    0L,                   // 3 - whiteBishops
+	    0L,                   // 4 - whiteRooks
+	    0L,                               // 5 - whiteQueens
+	    0L,                               // 6 - whiteKing
+	   
+	    0L,                             // 7 - blackPawns
+	    0L,                 // 8 - blackKnights
+	    0L,                 // 9 - blackBishops
+	    0L,                 // 10 - blackRooks
+	    0L,                              // 11 - blackQueens
+	    0L,                              // 12 - blackKing
+	};
+	
+	public long[] cardinalThreats = {
+		0L, // whiteRookSliders - rooks | queens
+		0L, // whiteBishopSliders - bishops | queens
+		
+		0L, // blackRookSliders - rooks | queens
+		0L, // blackBishopSliders - bishops | queens
+	};
+	
+	public long zobristHash = 0L;
+	
+	public long whiteOccupied = 0L;
+	public long blackOccupied = 0L;
+	public long allOccupied = 0L;
+	
+	public byte whiteKingPos = 4;
+	public byte blackKingPos = 60;
+	public byte sideToMove = 0;
+	
+	public byte enPassantTarget = -1;
+	public byte enPassantColor = -1;
+	
+	public boolean[] castlingRights = {
+		false,
+		false,
+		false,
+		false,
+	};
+	
+	private void loadPositionFromFEN(String FEN) { // Loads the FEN string into this position instance, NOT to be used in engine
+		// rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - Default Fen
 		
 		engineLookup = new byte[64];
 		guilookupBoard = new String[64];
@@ -134,7 +228,7 @@ public class Position {
 			    if (Character.isDigit(piece)) {
 			        curCol += piece - '0'; // skip empty squares
 			    } else {
-			        int boardIndex = lookup.get(piece);
+			        int boardIndex = fenLookup.get(piece);
 			        int square = rowCount * 8 + curCol;
 
 			        bitboards[boardIndex] |= (1L << square);
@@ -172,26 +266,7 @@ public class Position {
 		}
 	}
 	
-	public static String[] allNames = {"whitePawns", "whiteKnights", "whiteBishops", "whiteRooks", "whiteQueens", "whiteKing", "blackPawns", "blackKnights", "blackBishops", "blackRooks", "blackQueens", "blackKing"};
-	public static HashMap<String, Byte> nameKeyConversion = new HashMap<String, Byte>();
-	static {
-		// 0 REPRESENTS NO BOARD, subtract index by 1 to access valid board in allNames;
-		nameKeyConversion.put("whitePawns", (byte)1);
-		nameKeyConversion.put("whiteKnights", (byte)2);
-		nameKeyConversion.put("whiteBishops", (byte)3);
-		nameKeyConversion.put("whiteRooks", (byte)4);
-		nameKeyConversion.put("whiteQueens", (byte)5);
-		nameKeyConversion.put("whiteKing", (byte)6);
-		
-		nameKeyConversion.put("blackPawns", (byte)7);
-		nameKeyConversion.put("blackKnights", (byte)8);
-		nameKeyConversion.put("blackBishops", (byte)9);
-		nameKeyConversion.put("blackRooks", (byte)10);
-		nameKeyConversion.put("blackQueens", (byte)11);
-		nameKeyConversion.put("blackKing", (byte)12);
-	}
-	
-	public static void initOccupancy() {
+	private void initOccupancy() {
 		for (int i = 0; i < 13; i++) {
 			long board = bitboards[i];
 			
@@ -211,19 +286,18 @@ public class Position {
 		cardinalThreats[3] = bitboards[9] | bitboards[11];
 	}
 	
-	public static short whiteMoveCount = 0;
-	public static short blackMoveCount = 0;
-	public static long whiteAttackBitboard = 0L;
-	public static long blackAttackBitboard = 0L;
+	public short whiteMoveCount = 0;
+	public short blackMoveCount = 0;
+	public long whiteAttackBitboard = 0L;
+	public long blackAttackBitboard = 0L;
 	
-	public static int[][] getAttacks(byte color, boolean isInitialization) {
+	public int[][] getAttacks(byte color, boolean isInitialization) {
 		int[][] attackBoard = new int[64][];
 		byte myKingPos = (byte)(color == 0 ? blackKingPos : whiteKingPos);
 		
 		int[] pieceLocations = (color == 0 ? MagicBitboards.getSetBits(whiteOccupied) : MagicBitboards.getSetBits(blackOccupied));
 		if (color == 0) whiteMoveCount = 0; else blackMoveCount = 0;
 		if (color == 0) whiteAttackBitboard = 0L; else blackAttackBitboard = 0L;
-		
 		
 		for (int square : pieceLocations) {
 			byte row = (byte)(square / 8);
@@ -234,14 +308,14 @@ public class Position {
 			if (pieceType == 1 || pieceType == 7) {
 				moves = isInitialization ? 
 						PrecompMoves.precomputedMoves[color == 0 ? 2 : 3][square] :
-						LegalityCheck.legal(PrecompMoves.precomputedMoves[color == 0 ? 2 : 3][square]);
+						LegalityCheck.legal(PrecompMoves.precomputedMoves[color == 0 ? 2 : 3][square], this);
 			} else if (pieceType == 6 || pieceType == 12) {
 				moves = PrecompMoves.precomputedMoves[5][square];
 			} else {
 				allOccupied &= ~(1L << myKingPos);
 				moves = isInitialization ? 
-					KeyToPseudoMoves.pseudoMap[pieceType - 1].apply(row, col, color, true) : 
-					KeyToLegalMoves.pseudoMap[pieceType - 1].apply(row, col, color, true);
+					KeyToPseudoMoves.pseudoMap[pieceType - 1].apply(row, col, color, true, this) : 
+					KeyToLegalMoves.pseudoMap[pieceType - 1].apply(row, col, color, true, this);
 				
 				allOccupied |= (1L << myKingPos);
 			}
@@ -268,7 +342,7 @@ public class Position {
 		return attackBoard;
 	}
 	
-	public static int[] getAllLegalMoves(byte color) {
+	public int[] getAllLegalMoves(byte color) {
 		int[] moves = new int[128];
 		int moveCount = 0;
 
@@ -281,7 +355,7 @@ public class Position {
 			
 			byte pieceType = engineLookup[square];
 			
-			int[] subMoves = KeyToLegalMoves.pseudoMap[pieceType - 1].apply(row, col, color, false);
+			int[] subMoves = KeyToLegalMoves.pseudoMap[pieceType - 1].apply(row, col, color, false, this);
 			System.arraycopy(subMoves, 0, moves, moveCount, subMoves.length);
 			
 			moveCount += subMoves.length;
@@ -290,14 +364,14 @@ public class Position {
 		return Arrays.copyOf(moves, moveCount);
 	}
 	
-	public static int[][][] attacks = new int[2][][];
-	public static int[][] pins = new int[2][];
+	public int[][][] attacks = new int[2][][];
+	public int[][] pins = new int[2][];
 	
-	public static Deque<byte[]> enPassantStack = new ArrayDeque<byte[]>();
-	public static Deque<boolean[]> castleStack = new ArrayDeque<boolean[]>();
-	private static Deque<long[]> zobristStack = new ArrayDeque<long[]>();
+	private Deque<byte[]> enPassantStack = new ArrayDeque<byte[]>();
+	private Deque<boolean[]> castleStack = new ArrayDeque<boolean[]>();
+	private Deque<long[]> zobristStack = new ArrayDeque<long[]>();
 
-	public static boolean moveCausesCheck(int move) { // Checks if a move will cause a new check, before calling the actual move
+	public boolean moveCausesCheck(int move) { // Checks if a move will cause a new check, before calling the actual move
 		byte from = (byte)(move & 0x3F);
 		byte to = (byte)((move >>> 6) & 0x3F);
 		byte originKey = (byte)((move >>> 12) & 0xF);
@@ -312,7 +386,7 @@ public class Position {
 		boolean opponentCurrentlyInCheck = myAttacks[opponentKingPosition] != null;
 		if (opponentCurrentlyInCheck) return false;
 		
-		int[] newMoves = KeyToLegalMoves.pseudoMap[originKey - 1].apply(row, col, color, false);
+		int[] newMoves = KeyToLegalMoves.pseudoMap[originKey - 1].apply(row, col, color, false, this);
 		for (int subMove : newMoves) {
 			byte subTo = (byte)((subMove >>> 6) & 0x3F);
 			
@@ -327,15 +401,15 @@ public class Position {
 	// Get attacks
 	// Get Pins
 	// set pins and then filter attacks with pins
-	private static void updateAttackAndPins() {
-		attacks[0] = Position.getAttacks((byte)0, false);
-		attacks[1] = Position.getAttacks((byte)1, false);
+	private void updateAttackAndPins() {
+		attacks[0] = getAttacks((byte)0, false);
+		attacks[1] = getAttacks((byte)1, false);
 		
-		pins[0] = LegalityCheck.getPinnedPieces((byte)0);
-		pins[1] = LegalityCheck.getPinnedPieces((byte)1);
+		pins[0] = LegalityCheck.getPinnedPieces((byte)0, this);
+		pins[1] = LegalityCheck.getPinnedPieces((byte)1, this);
 	}
 	
-	public static void logCastleStack() {
+	private void logCastleStack() {
 		System.out.println("_______________________");
 		System.out.println("Castle Stack Length: " + castleStack.size());
 		
@@ -345,8 +419,8 @@ public class Position {
 		System.out.println("_________________________");
 	}
 	
-	public static int lastGuiMove = -1;
-	public static void makeMove(int move, boolean isEngine) {
+	public int lastGuiMove = -1;
+	public void makeMove(int move, boolean isEngine) {
 		byte from = (byte)(move & 0x3F);
 		byte to = (byte)((move >>> 6) & 0x3F);
 		byte originKey = (byte)((move >>> 12) & 0xF);
@@ -381,7 +455,7 @@ public class Position {
 				enPassantTarget, enPassantColor,	
 			});
 			
-			zobristStack.add(new long[] {ZobristHash.hash});
+			zobristStack.add(new long[] {zobristHash});
 		} else {
 			lastGuiMove = move;
 		}
@@ -532,7 +606,7 @@ public class Position {
 		}
 		
 		// Zobrist
-		ZobristHash.updateZobrist(move, savedEPTarget, savedCTR);
+		updateZobrist(move, savedEPTarget, savedCTR);
 		
 		// Side to Move
 		sideToMove = (byte)(1 - sideToMove);
@@ -547,7 +621,7 @@ public class Position {
 		updateAttackAndPins();
 	}
 	
-	public static void unmakeMove(int move) {
+	public void unmakeMove(int move) {
 		byte from = (byte)(move & 0x3F);
 		byte to = (byte)((move >>> 6) & 0x3F);
 		byte originKey = (byte)((move >>> 12) & 0xF);
@@ -688,7 +762,7 @@ public class Position {
 		
 		// Side to Move and Zobrist
 		sideToMove = (byte)(1 - sideToMove);
-		ZobristHash.hash = zobristStack.removeLast()[0];
+		zobristHash = zobristStack.removeLast()[0];
 		
 		// Cardinal Updating
 		cardinalThreats[0] = bitboards[4] | bitboards[5];
@@ -700,14 +774,157 @@ public class Position {
 		updateAttackAndPins();
 	}
 	
-	public static void toggleNullMove() {
+	public void toggleNullMove() {
 		sideToMove = (byte)(1 - sideToMove);
-		ZobristHash.hash ^= ZobristHash.whiteToMoveKey;
+		zobristHash ^= whiteToMoveKey;
+	}
+	
+	public int getEval() {		
+		int whiteMaterialValue = 0;
+		int blackMaterialValue = 0;
+		int whitePST = 0;
+		int blackPST = 0;
+		
+		int[] whiteLocations = MagicBitboards.getSetBits(whiteOccupied);
+		int[] blackLocations = MagicBitboards.getSetBits(blackOccupied);
+		
+		for (int square : whiteLocations) {
+			byte pieceType = engineLookup[square];
+			
+			whiteMaterialValue += EvaluateBoard.valueMap[pieceType];
+			whitePST += EvaluateBoard.pst[pieceType][square];
+		}
+		
+		for (int square : blackLocations) {
+			byte pieceType = engineLookup[square];
+			
+			blackMaterialValue += EvaluateBoard.valueMap[pieceType];
+			blackPST += EvaluateBoard.pst[pieceType - 6][square];
+		}
+		
+		return 
+			((whiteMaterialValue - blackMaterialValue) * 1) +
+			((whitePST - blackPST) * 1)
+		;
+	}
+	
+	// ZOBRIST HASHING
+	// Indexes matches the ones used in positions | bitboards
+	private static long[][] zobristKeys = new long[13][];
+	private static long[] enPassantKeys = new long[64];
+	private static long[] castlingKeys = new long[4];
+	public static long whiteToMoveKey; // Public so a null move can toggle the side to move
+	
+	public static void initGlobalZobristKeys() {
+		Random rng = new Random();
+				
+		// Pieces Keys
+		for (int i = 0; i < 13; i++) {
+			zobristKeys[i] = new long[64];
+			for (int j = 0; j < 64; j++) {
+				zobristKeys[i][j] = rng.nextLong();
+			}
+		}
+		
+		// En-Passant Key
+		for (int i = 0; i < 64; i++) {
+			enPassantKeys[i] = rng.nextLong();
+		}
+		
+		// Side to move Key
+		whiteToMoveKey = rng.nextLong();
+		
+		// Castling Keys
+		for (int i = 0; i < 4; i++) {
+			castlingKeys[i] = rng.nextLong();
+		}
+	}
+	
+	public void initializeZobristHash() {
+		// Initializing Hash
+		int[] pieceLocations = MagicBitboards.getSetBits(allOccupied);
+		for (int square : pieceLocations) {
+			int pieceType = engineLookup[square];
+			long hashValue = zobristKeys[pieceType][square];
+			
+			zobristHash ^= hashValue;
+		}
+		
+		for (int castleRightIndex = 0; castleRightIndex < 4; castleRightIndex++) {
+			if (castlingRights[castleRightIndex]) {
+				zobristHash ^= castlingKeys[castleRightIndex];
+			}
+		}
+		
+		if (sideToMove == 0) {zobristHash ^= whiteToMoveKey;};
+		if (enPassantTarget != -1) {zobristHash ^= enPassantKeys[enPassantTarget];};
+	}
+	
+	public void updateZobrist(int move, int previousEnPassantTarget, boolean[] previousCTR) {
+		byte from = (byte)(move & 0x3F);
+		byte to = (byte)((move >>> 6) & 0x3F);
+		byte originKey = (byte)((move >>> 12) & 0xF);
+		byte targetKey = (byte)((move >>> 16) & 0xF);
+		byte promotionKey = (byte)((move >>> 22) & 0xF);
+		
+		byte color = (byte)((move >>> 31) & 1L);
+		boolean isCapture = targetKey != 0;
+		boolean isDoublePawn = ((byte)((move >>> 30) & 1L)) != 0;
+		boolean isEnPassant = ((byte)(move >>> 29) & 1L) != 0;
+		boolean isCastle = ((byte)(move >>> 28) & 1L) != 0;
+		byte castleType = (byte)((move >>> 20) & 3L);
+		
+		if (promotionKey != 0) {
+			zobristHash ^= zobristKeys[originKey][from];
+			zobristHash ^= zobristKeys[promotionKey][to];
+		} else {
+			zobristHash ^= zobristKeys[originKey][from];
+			zobristHash ^= zobristKeys[originKey][to];
+		}
+		
+		if (isEnPassant) {
+			byte captureSquare = (byte)((color == 0) ? to - 8 : to + 8);
+			byte captureType = (byte)(color == 0 ? 7 : 1);
+			zobristHash ^= zobristKeys[captureType][captureSquare];
+		} else if (isCapture) {;
+			zobristHash ^= zobristKeys[targetKey][to];
+		}
+		
+		zobristHash ^= whiteToMoveKey;
+		
+		if (previousEnPassantTarget != -1) {
+			zobristHash ^= enPassantKeys[previousEnPassantTarget];
+		}
+		if (enPassantTarget != -1) {
+			zobristHash ^= enPassantKeys[enPassantTarget];
+		}
+		
+		for (byte i = 0; i < 4; i++) {
+			if (previousCTR[i]) { // Clear current keys
+				zobristHash ^= castlingKeys[i];
+			}
+			
+			if (castlingRights[i]) {
+				zobristHash ^= castlingKeys[i];
+			}
+		}
+		
+		if (isCastle) {
+			boolean isCastleShort = castleType % 2 == 0;
+			byte rookType = (byte)((color == 0) ? 4 : 10);
+			if (isCastleShort) {
+				zobristHash ^= zobristKeys[rookType][from + 3];
+				zobristHash ^= zobristKeys[rookType][from + 1];
+			} else {
+				zobristHash ^= zobristKeys[rookType][from - 4];
+				zobristHash ^= zobristKeys[rookType][from - 1];
+			}
+		}
 	}
 	
 	// Debug
 	
-	public static void checkPositionValidity() {
+	public void checkPositionValidity() {
 		int[] whitePieceLocations = MagicBitboards.getSetBits(whiteOccupied);
 		int[] blackPieceLocations = MagicBitboards.getSetBits(blackOccupied);
 		

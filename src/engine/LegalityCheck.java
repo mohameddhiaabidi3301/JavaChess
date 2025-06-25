@@ -53,12 +53,12 @@ public class LegalityCheck {
 		}
 	}
 	
-	public static int[] getPinnedPieces(byte colorId) {
+	public static int[] getPinnedPieces(byte colorId, Position chessPosition) {
 		int[] pinBoard = new int[64];
 		Arrays.fill(pinBoard, -1);
 		
-		int kingPosition = (colorId == 0) ? Position.whiteKingPos : Position.blackKingPos;
-		long myPieces = (colorId == 0) ? Position.whiteOccupied : Position.blackOccupied;
+		int kingPosition = (colorId == 0) ? chessPosition.whiteKingPos : chessPosition.blackKingPos;
+		long myPieces = (colorId == 0) ? chessPosition.whiteOccupied : chessPosition.blackOccupied;
 		
 		for (int i = 0; i < cardinals.length; i++) {
 			int[] direction = cardinals[i];
@@ -69,9 +69,9 @@ public class LegalityCheck {
 			
 			long attackerCardinals;
 			if (direction[0] != 0 && direction[1] != 0) {
-			    attackerCardinals = Position.cardinalThreats[(colorId == 0) ? 3 : 1] & blockerMask;
+			    attackerCardinals = chessPosition.cardinalThreats[(colorId == 0) ? 3 : 1] & blockerMask;
 			} else {
-			    attackerCardinals = Position.cardinalThreats[(colorId == 0) ? 2 : 0] & blockerMask;
+			    attackerCardinals = chessPosition.cardinalThreats[(colorId == 0) ? 2 : 0] & blockerMask;
 			}
 			
 			int[] attackerPiecesOnLine = MagicBitboards.getSetBits(attackerCardinals);
@@ -102,7 +102,7 @@ public class LegalityCheck {
 				long attackLine = MagicBitboards.lineBB((byte)closestMy, (byte)closestOpponent);
 				
 				if (kingBlockerOrder[kingPosition][ix][closestMy] < kingBlockerOrder[kingPosition][ix][closestOpponent]) {					
-					if ((attackLine & Position.allOccupied) == 0 && (MagicBitboards.lineBB((byte)kingPosition, (byte)closestMy) & Position.allOccupied) == 0 ) {
+					if ((attackLine & chessPosition.allOccupied) == 0 && (MagicBitboards.lineBB((byte)kingPosition, (byte)closestMy) & chessPosition.allOccupied) == 0 ) {
 						if (pinBoard[closestMy] != -1) {
 							pinBoard[closestMy] = -2; // Set it to -2 since a double pinned piece cannot move
 						} else if (pinBoard[closestMy] != -2) {
@@ -116,7 +116,7 @@ public class LegalityCheck {
 		return pinBoard;
 	}
 	
-	public static int[] legal(int[] moveArray) {
+	public static int[] legal(int[] moveArray, Position chessPosition) {
 		if (moveArray.length == 0) return moveArray;
 		
 		int[] filteredMoves = new int[moveArray.length];
@@ -126,11 +126,11 @@ public class LegalityCheck {
 		byte from = (byte)(moveArray[0] & 0x3F);
 		byte pieceId = (byte)((moveArray[0] >>> 12) & 0xF);
 		
-		int kingPosition = (color == 0) ? Position.whiteKingPos : Position.blackKingPos;
-		int[][] opponentAttacks = (color == 0) ? Position.attacks[1] : Position.attacks[0];
+		int kingPosition = (color == 0) ? chessPosition.whiteKingPos : chessPosition.blackKingPos;
+		int[][] opponentAttacks = (color == 0) ? chessPosition.attacks[1] : chessPosition.attacks[0];
 		boolean inCheck = opponentAttacks[kingPosition] != null;
 		int[] kingAttackers = opponentAttacks[kingPosition];
-		int[] pinnedPieces = Position.pins[color];
+		int[] pinnedPieces = chessPosition.pins[color];
 		
 		for (int i = 0; i < moveArray.length; i++) {
 			int move = moveArray[i];
@@ -179,7 +179,7 @@ public class LegalityCheck {
 				
 				if (inCheck) { // Must capture piece or get itself in pin line
 					if (to != kingAttackers[0]) {
-						byte attackerType = Position.engineLookup[kingAttackers[0]];
+						byte attackerType = chessPosition.engineLookup[kingAttackers[0]];
 	
 						if (attackerType % 6 != 3 && attackerType % 6 != 4 && attackerType % 6 != 5) {
 							// Not a rook or bishop or queen type

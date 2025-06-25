@@ -4,7 +4,7 @@ import debug.DebugRender;
 import java.util.ArrayList;
 import java.util.Arrays;
 public class MoveGen {
-	public static int[] pseudoPawns(byte row, byte col, byte color, boolean includeSelfCaptures) {
+	public static int[] pseudoPawns(byte row, byte col, byte color, boolean includeSelfCaptures, Position chessPosition) {
 		byte square = (byte)(row * 8 + col);
 		byte originBoardKey = (byte)((color == 0) ? 1 : 7);
 		
@@ -23,7 +23,7 @@ public class MoveGen {
 			byte to = (byte)((move >>> 6) & 0x3F);
 			byte targetRow = (byte)(to >> 3);
 			
-			if ((Position.allOccupied & (1L << to)) != 0) continue;
+			if ((chessPosition.allOccupied & (1L << to)) != 0) continue;
 			byte targetBoardKey = 0; // Has to be zero, since if there's a capture its discarded
 			
 			byte dist = (byte)(Math.abs(to-from));
@@ -58,11 +58,11 @@ public class MoveGen {
 			byte to = (byte)((move >>> 6) & 0x3F);
 			byte toRow = (byte)(to >> 3);
 			
-			long opponentBits = (color == 0) ? Position.blackOccupied : Position.whiteOccupied;
-			boolean isEnPassant = (to == Position.enPassantTarget);
+			long opponentBits = (color == 0) ? chessPosition.blackOccupied : chessPosition.whiteOccupied;
+			boolean isEnPassant = (to == chessPosition.enPassantTarget);
 			
-			if ((opponentBits & (1L << to)) != 0 || (isEnPassant && Position.enPassantColor != color)) {
-				byte targetBoardKey = Position.engineLookup[to];
+			if ((opponentBits & (1L << to)) != 0 || (isEnPassant && chessPosition.enPassantColor != color)) {
+				byte targetBoardKey = chessPosition.engineLookup[to];
 	
 				move |= (originBoardKey << 12);
 				move |= (targetBoardKey << 16);
@@ -79,19 +79,19 @@ public class MoveGen {
 		return Arrays.copyOf(moves, moveCount);
 	}
 	
-	public static int[] pseudoKnights(byte row, byte col, byte color, boolean includeSelfCaptures) {
+	public static int[] pseudoKnights(byte row, byte col, byte color, boolean includeSelfCaptures, Position chessPosition) {
 		byte square = (byte)(row * 8 + col);
 		int[] precomputedMoves = PrecompMoves.precomputedMoves[4][square];
 		byte originBoardKey = (byte)(color == 0 ? 2 : 8);
 		
 		int[] moves = new int[precomputedMoves.length];
 		int moveCount = 0;
-		long myOccupied = (color == 0) ? Position.whiteOccupied : Position.blackOccupied;
+		long myOccupied = (color == 0) ? chessPosition.whiteOccupied : chessPosition.blackOccupied;
 		
 		for (int move : precomputedMoves) {
 			byte from = (byte)((move) & 0x3F);
 			byte to = (byte)((move >>> 6) & 0x3F);
-			byte captureKey = Position.engineLookup[to];
+			byte captureKey = chessPosition.engineLookup[to];
 			
 			if ((myOccupied & (1L << to)) != 0 && !includeSelfCaptures) continue;
 			
@@ -107,14 +107,14 @@ public class MoveGen {
 		return Arrays.copyOf(moves, moveCount);
 	}
 	
-	public static int[] pseudoKings(byte row, byte col, byte color, boolean includeSelfCaptures) {
+	public static int[] pseudoKings(byte row, byte col, byte color, boolean includeSelfCaptures, Position chessPosition) {
 		byte square = (byte)(row * 8 + col);
 		int[] precomputedMoves = PrecompMoves.precomputedMoves[5][square];
 		byte originBoardKey = (byte)(color == 0 ? 6 : 12);
 		
 		int[] moves = new int[precomputedMoves.length + 2];
 		int moveCount = 0;
-		long myOccupied = (color == 0) ? Position.whiteOccupied : Position.blackOccupied;
+		long myOccupied = (color == 0) ? chessPosition.whiteOccupied : chessPosition.blackOccupied;
 		
 		byte castleShortIndex = (byte)((color == 0) ? 0 : 2);
 		byte castleLongIndex = (byte)(castleShortIndex + 1);
@@ -122,7 +122,7 @@ public class MoveGen {
 		for (int move : precomputedMoves) {
 			byte from = (byte)((move) & 0x3F);
 			byte to = (byte)((move >>> 6) & 0x3F);
-			byte captureKey = Position.engineLookup[to];
+			byte captureKey = chessPosition.engineLookup[to];
 			
 			if ((myOccupied & (1L << to)) != 0 && !includeSelfCaptures) continue;
 			
@@ -134,13 +134,13 @@ public class MoveGen {
 			moves[moveCount++] = mainMove;
 		}
 		
-		long myRooks = (color == 0) ? Position.bitboards[4] : Position.bitboards[10];
+		long myRooks = (color == 0) ? chessPosition.bitboards[4] : chessPosition.bitboards[10];
 		if ((row == 0 || row == 7) && (col == 4)) {
-			if (Position.castlingRights[castleShortIndex]) {
+			if (chessPosition.castlingRights[castleShortIndex]) {
 				byte expectedRookLocation = (byte)(square + 3);
 				boolean rookAtLocation = ((myRooks & (1L << expectedRookLocation)) != 0);
 				
-				if (Position.engineLookup[square + 1] == 0 && Position.engineLookup[square + 2] == 0 && rookAtLocation) {
+				if (chessPosition.engineLookup[square + 1] == 0 && chessPosition.engineLookup[square + 2] == 0 && rookAtLocation) {
 					int newMove = square;
 					newMove |= ((square + 2) << 6);
 					newMove |= (originBoardKey << 12);
@@ -152,11 +152,11 @@ public class MoveGen {
 				}
 			}
 			
-			if (Position.castlingRights[castleLongIndex]) {
+			if (chessPosition.castlingRights[castleLongIndex]) {
 				byte expectedRookLocation = (byte)(square - 4);
 				boolean rookAtLocation = ((myRooks & (1L << expectedRookLocation)) != 0);
 				
-				if (Position.engineLookup[square - 1] == 0 && Position.engineLookup[square - 2] == 0 && Position.engineLookup[square - 3] == 0 && rookAtLocation) {
+				if (chessPosition.engineLookup[square - 1] == 0 && chessPosition.engineLookup[square - 2] == 0 && chessPosition.engineLookup[square - 3] == 0 && rookAtLocation) {
 					int newMove = square;
 					newMove |= ((square - 2) << 6);
 					newMove |= (originBoardKey << 12);
@@ -172,14 +172,14 @@ public class MoveGen {
 		return Arrays.copyOf(moves, moveCount);
 	}
 	
-	public static int[] pseudoBishops(byte row, byte col, byte color, boolean includeSelfCaptures) {
+	public static int[] pseudoBishops(byte row, byte col, byte color, boolean includeSelfCaptures, Position chessPosition) {
 		byte square = (byte)(row * 8 + col);
-		long myOccupied = (color == 0) ? Position.whiteOccupied : Position.blackOccupied;
+		long myOccupied = (color == 0) ? chessPosition.whiteOccupied : chessPosition.blackOccupied;
 		
 		long blockerMask = MagicBitboards.bishopMasks[square];
 		byte shift = MagicBitboards.bishopShifts[square];
 		
-		long relevantBlockerMask = (blockerMask & Position.allOccupied);
+		long relevantBlockerMask = (blockerMask & chessPosition.allOccupied);
 		
 		long magic = MagicBitboards.bishopMagics[square];
 		long product = (relevantBlockerMask * magic);
@@ -195,7 +195,7 @@ public class MoveGen {
 			byte to = (byte)((move >>> 6) & 0x3F);
 			
 			if ((myOccupied & (1L << to)) == 0 || includeSelfCaptures) {
-				byte toKey = Position.engineLookup[to];
+				byte toKey = chessPosition.engineLookup[to];
 				
 				move |= (fromKey << 12);
 				move |= (toKey << 16);
@@ -209,14 +209,14 @@ public class MoveGen {
 		return Arrays.copyOf(finalMoves, moveCount);
 	}
 	
-	public static int[] pseudoRooks(byte row, byte col, byte color, boolean includeSelfCaptures) {
+	public static int[] pseudoRooks(byte row, byte col, byte color, boolean includeSelfCaptures, Position chessPosition) {
 		byte square = (byte)(row * 8 + col);
-		long myOccupied = (color == 0) ? Position.whiteOccupied : Position.blackOccupied;
+		long myOccupied = (color == 0) ? chessPosition.whiteOccupied : chessPosition.blackOccupied;
 		
 		long blockerMask = MagicBitboards.rookMasks[square];
 		byte shift = MagicBitboards.rookShifts[square];
 		
-		long relevantBlockerMask = blockerMask & Position.allOccupied;
+		long relevantBlockerMask = blockerMask & chessPosition.allOccupied;
 				
 		long magic = MagicBitboards.rookMagics[square];
 		long product = (relevantBlockerMask * magic);
@@ -232,7 +232,7 @@ public class MoveGen {
 			byte to = (byte)((move >>> 6) & 0x3F);
 			
 			if ((myOccupied & (1L << to)) == 0 || includeSelfCaptures) {
-				byte toKey = Position.engineLookup[to];
+				byte toKey = chessPosition.engineLookup[to];
 				
 				move |= (fromKey << 12);
 				move |= (toKey << 16);
@@ -246,9 +246,9 @@ public class MoveGen {
 		return Arrays.copyOf(finalMoves, moveCount);
 	}
 	
-	public static int[] pseudoQueens(byte row, byte col, byte color, boolean includeSelfCaptures) {
-		int[] rookMoves = pseudoRooks(row, col, color, includeSelfCaptures);
-		int[] bishopMoves = pseudoBishops(row, col, color, includeSelfCaptures);
+	public static int[] pseudoQueens(byte row, byte col, byte color, boolean includeSelfCaptures, Position chessPosition) {
+		int[] rookMoves = pseudoRooks(row, col, color, includeSelfCaptures, chessPosition);
+		int[] bishopMoves = pseudoBishops(row, col, color, includeSelfCaptures, chessPosition);
 		int[] bothMoves = new int[rookMoves.length + bishopMoves.length];
 		
 		int moveCount = 0;

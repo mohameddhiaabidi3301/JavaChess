@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.function.IntUnaryOperator;
 
 import debug.DebugRender;
+import main.Main;
 
 public class Minimax {
 	public static int[] getComputerMove(int minDepth, int maxMs, boolean isMaximizing) {
@@ -37,10 +38,10 @@ public class Minimax {
 			score += captureValue - ourValue;
 		}
 		
-		int[] attackers = Position.attacks[1 - color][to];
-		int[] defenders = Position.attacks[color][to];
+		int[] attackers = Main.globalPosition.attacks[1 - color][to];
+		int[] defenders = Main.globalPosition.attacks[color][to];
 		
-		if (Position.attacks[color][to] == null && Position.attacks[1 - color][to] != null) {
+		if (Main.globalPosition.attacks[color][to] == null && Main.globalPosition.attacks[1 - color][to] != null) {
 			score -= ourValue; // Hanged Piece
 		}
 		
@@ -96,7 +97,7 @@ public class Minimax {
 		for (int currentDepth = 0; currentDepth >= 0; currentDepth++) {
 			long timeElapsedMs = (System.nanoTime() - startTime) / 1_000_000;
 			
-			if (currentDepth > minDepth && timeElapsedMs > maxTime) {
+			if (currentDepth > minDepth && timeElapsedMs >= maxTime - 1) {
 				break;
 			}
 			
@@ -123,11 +124,15 @@ public class Minimax {
 			
 	private static int[] minimax(int depth, boolean isMaximizing, int alpha, int beta, int[] previousBestMove, long itdStartTime, int maxTime, int quiessenceCount, int ply) {
 		if (depth == 0) {
-			return new int[] {-1, EvaluateBoard.getEval(), -1, depth};
+			return new int[] {-1, Main.globalPosition.getEval(), -1, depth};
 		}
 		
-		int TT_INDEX = (int)(ZobristHash.hash & (TT_SIZE - 1));
-		if (zobristKeys[TT_INDEX] == ZobristHash.hash) {
+		int TT_INDEX = (int)(Main.globalPosition.zobristHash & (TT_SIZE - 1));
+		if (zobristKeys[TT_INDEX] == Main.globalPosition.zobristHash) {
+			if ((System.nanoTime() - itdStartTime) / 1_000_000 > maxTime) {
+				return new int[] {-1, 0, FLAG_TIMEOUT, depth};
+			}
+			
 			int[] data = Arrays.copyOf(zobristValues[TT_INDEX], 4);
 			int flag = data[2];
 			int cacheScore = data[1];
@@ -144,22 +149,26 @@ public class Minimax {
 			}
 		}
 		
-		boolean inEndGame = (Long.bitCount(Position.whiteOccupied) + Long.bitCount(Position.blackOccupied)) <= 14;
-		boolean usInCheck = (isMaximizing ? Position.attacks[1][Position.whiteKingPos] != null : Position.attacks[0][Position.blackKingPos] != null);
+		boolean inEndGame = (Long.bitCount(Main.globalPosition.whiteOccupied) + Long.bitCount(Main.globalPosition.blackOccupied)) <= 14;
+		boolean usInCheck = (isMaximizing ? Main.globalPosition.attacks[1][Main.globalPosition.whiteKingPos] != null : Main.globalPosition.attacks[0][Main.globalPosition.blackKingPos] != null);
 	
 		if (depth >= 3 && quiessenceCount == 0 && !usInCheck && !inEndGame) {
+			if ((System.nanoTime() - itdStartTime) / 1_000_000 > maxTime) {
+				return new int[] {-1, 0, FLAG_TIMEOUT, depth};
+			}
+			
 			int R = 2; // Depth Reduction
-			Position.toggleNullMove(); // Symmetric
+			Main.globalPosition.toggleNullMove(); // Symmetric
 			
 			int[] nullScore = minimax(depth - R - 1, !isMaximizing, -beta, -beta + 1, null, itdStartTime, maxTime, quiessenceCount, ply + 1);
-			Position.toggleNullMove();
+			Main.globalPosition.toggleNullMove();
 			
 			if (nullScore[1] >= beta) {
 				return new int[] {-1, beta, FLAG_LOWERBOUND, depth}; // Beta cutoff
 			}
 		}
 		
-		int[] moves = (isMaximizing) ? Position.getAllLegalMoves((byte)0) : Position.getAllLegalMoves((byte)1);
+		int[] moves = (isMaximizing) ? Main.globalPosition.getAllLegalMoves((byte)0) : Main.globalPosition.getAllLegalMoves((byte)1);
 		int[] bestMove = new int[] {-1, (isMaximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE), -1, depth};
 		sortByScore(moves, previousBestMove, depth, ply); // Order the PBM first because its likely good
 		
@@ -184,19 +193,14 @@ public class Minimax {
 			int nextQuiessence = (extendQuiessence) ? quiessenceCount + 1 : quiessenceCount;
 			
 			if ((System.nanoTime() - itdStartTime) / 1_000_000 > maxTime) {
-				if (bestMove[0] == -1) {
-			        return new int[] {-1, 0, FLAG_TIMEOUT, depth};
-			    }
-				
-				bestMove[2] = FLAG_TIMEOUT;
-				return bestMove;
+				return new int[] {-1, 0, FLAG_TIMEOUT, depth};
 			}
 			
 			if (!isPromotion) {
-				Position.makeMove(move, true);
+				Main.globalPosition.makeMove(move, true);
 				
 				int[] score = minimax(nextDepth, !isMaximizing, alpha, beta, null, itdStartTime, maxTime, nextQuiessence, ply + 1);
-				Position.unmakeMove(move);
+				Main.globalPosition.unmakeMove(move);
 				
 				if (isMaximizing) {
 					 if (score[1] > bestMove[1]) {
@@ -230,10 +234,10 @@ public class Minimax {
 				for (byte key : pkKeys) {
 					int promotionMove = (move & ~(0xF << 22)) | (key << 22);
 					
-					Position.makeMove(promotionMove, true);
+					Main.globalPosition.makeMove(promotionMove, true);
 					
 					int[] score = minimax(nextDepth, !isMaximizing, alpha, beta, null, itdStartTime, maxTime, nextQuiessence, ply + 1);
-					Position.unmakeMove(promotionMove);
+					Main.globalPosition.unmakeMove(promotionMove);
 					
 					if (isMaximizing) {
 						 if (score[1] > bestMove[1]) {
@@ -260,12 +264,12 @@ public class Minimax {
 		bestMove[2] = cutoffFlag;
 		
 		if (bestMove[2] != FLAG_TIMEOUT) {
-			if (zobristKeys[TT_INDEX] == ZobristHash.hash) {
+			if (zobristKeys[TT_INDEX] == Main.globalPosition.zobristHash) {
 				if (zobristValues[TT_INDEX][3] <= depth) {
 					zobristValues[TT_INDEX] = bestMove;
 				}
 			} else {
-				zobristKeys[TT_INDEX] = ZobristHash.hash;
+				zobristKeys[TT_INDEX] = Main.globalPosition.zobristHash;
 				zobristValues[TT_INDEX] = bestMove;
 			}
 		}
