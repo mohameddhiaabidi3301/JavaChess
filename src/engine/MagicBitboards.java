@@ -441,23 +441,34 @@ public class MagicBitboards {
 		return Arrays.copyOf(setBits, amount);
 	}
 	
+	public static long[] columnMasks = new long[64];
 	public static long[][] pawnAttackMasks = new long[2][64];
-	public static void initPawnAttackMasks() {
-		// Pawn Mask 101 : 5
-		
-		for (int color = 0; color <= 1; color++) {
-			int direction = (color == 0) ? 1 : -1;
+	public static void initMagicMasks() {
+		// Column masks
+		long column = (1L | 1L << 8 | 1L << 16 | 1L << 24 | 1L << 32 | 1L << 40 | 1L << 48 | 1L << 56);
+		for (int square = 0; square < 64; square++) {
+			int squareCol = square % 8;
 			
-			for (int square = 0; square < 64; square++) {
-				int row = square / 8;
-				int col = square % 8;
-				
+			columnMasks[square % 8] = column << squareCol;
+		}
+		
+		for (int square = 0; square < 64; square++) {
+			int row = square / 8;
+			int col = square % 8;
+			
+			for (int c = 0; c <= 1; c++) {
 				long mask = 0L;
+				int moveDir = (c == 0) ? 1 : -1;
 				
-				if (withinBounds((byte)(row + direction), (byte)(col - 1), 0, 7)) mask |= (1L << (square + (direction * 7)));
-				if (withinBounds((byte)(row + direction), (byte)(col + 1), 0, 7)) mask |= (1L << (square + (direction * 9)));
+				if (withinBounds(row + moveDir, col - 1, 0, 7)) {
+					mask |= (1L << ((row + moveDir) * 8 + (col - 1)));
+				}
 				
-				pawnAttackMasks[color][square] = mask;
+				if (withinBounds(row + moveDir, col + 1, 0 , 7)) {
+					mask |= (1L << ((row + moveDir) * 8 + (col + 1)));
+				}
+				
+				pawnAttackMasks[c][square] = mask;
 			}
 		}
 	}

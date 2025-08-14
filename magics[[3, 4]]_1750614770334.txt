@@ -1,4 +1,0 @@
-=== Magic Number Search Results for [[3, 4]] ===
-Started at: Sun Jun 22 13:52:50 EDT 2025
-
-PROGRESS: [3][Rook] 262 / 2048, (0xb590d51b23e04e9fL) Attempt 0

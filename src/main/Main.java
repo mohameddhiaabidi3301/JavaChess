@@ -18,12 +18,12 @@ public class Main {
 		MagicBitboards.initBishopLookups();
 		MagicBitboards.initRookLookups();
 		MagicBitboards.initPrecomputedLineBB();
-		MagicBitboards.initPawnAttackMasks();
+		MagicBitboards.initMagicMasks();
 		
 		Position.initGlobalZobristKeys(); // Zobrist Keys are global across all threads
 		Position globalPos = new Position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq");
 
-		globalPosition = globalPos.clonePosition();
+		globalPosition = globalPos;
 		Board.init();
 	}
 }

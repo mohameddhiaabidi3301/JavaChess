@@ -89,7 +89,7 @@ public class Position {
 	}
 	
 	public Position() {}
-	public Position clonePosition() {
+	public Position clonePosition() { // Clones position, carries over only engine necessary parts
 		Position pos = new Position();
 		
 		pos.zobristHash = zobristHash;
@@ -110,8 +110,9 @@ public class Position {
 		pos.engineLookup = new byte[64];
 		System.arraycopy(engineLookup, 0, pos.engineLookup, 0, 64);
 		
-		pos.guilookupBoard = new String[64];
-		System.arraycopy(guilookupBoard, 0, pos.guilookupBoard, 0, 64);
+		// Enable to debug (visualize) the clone, not necessary in the engine
+		//pos.guilookupBoard = new String[64];
+		//System.arraycopy(guilookupBoard, 0, pos.guilookupBoard, 0, 64);
 		
 		pos.attacks = new int[2][][];
 		pos.pins = new int[2][];
@@ -784,15 +785,24 @@ public class Position {
 		int blackMaterialValue = 0;
 		int whitePST = 0;
 		int blackPST = 0;
+		int whiteBonus = 0;
+		int blackBonus = 0;
 		
 		int[] whiteLocations = MagicBitboards.getSetBits(whiteOccupied);
 		int[] blackLocations = MagicBitboards.getSetBits(blackOccupied);
 		
+		// Material and PST
 		for (int square : whiteLocations) {
 			byte pieceType = engineLookup[square];
 			
 			whiteMaterialValue += EvaluateBoard.valueMap[pieceType];
 			whitePST += EvaluateBoard.pst[pieceType][square];
+			
+			if (pieceType == 1) { // Pawn Bonus for defending other pieces (especially pawns) (chain)
+				whitePST += Long.bitCount(MagicBitboards.pawnAttackMasks[0][square] & whiteOccupied) * 2;
+				whitePST += Long.bitCount(MagicBitboards.pawnAttackMasks[0][square] & bitboards[1]) * 2; // Extra bonus for pawns
+				whitePST += (square / 8); // Encourage pawn pushes
+			}
 		}
 		
 		for (int square : blackLocations) {
@@ -800,11 +810,31 @@ public class Position {
 			
 			blackMaterialValue += EvaluateBoard.valueMap[pieceType];
 			blackPST += EvaluateBoard.pst[pieceType - 6][square];
+			
+			if (pieceType == 7) { // Pawn Bonus for defending other pieces (especially pawns) (chain)
+				blackPST += Long.bitCount(MagicBitboards.pawnAttackMasks[0][square] & whiteOccupied) * 2;
+				blackPST += Long.bitCount(MagicBitboards.pawnAttackMasks[0][square] & bitboards[1]) * 2; // Extra bonus for pawns
+				blackPST += 7 - (square / 8);
+			}
 		}
+		
+		// Bonus for side to move and check
+		if (sideToMove == 0) whiteBonus += 10; else blackBonus += 10;
+		if ((whiteAttackBitboard & (1L << blackKingPos)) != 0) whiteBonus += 10;
+		if ((blackAttackBitboard & (1L << whiteKingPos)) != 0) blackBonus += 10;
+		
+		// Encourage keeping the king safe, queen map can be used for open files
+		int whiteKingSafety = 0;
+		int blackKingSafety = 0;
+		
+		whiteKingSafety -= KeyToPseudoMoves.pseudoMap[5].apply((byte)(whiteKingPos / 8), (byte)(whiteKingPos % 8), (byte)0, false, this).length;
+		blackKingSafety -= KeyToPseudoMoves.pseudoMap[5].apply((byte)(blackKingPos / 8), (byte)(blackKingPos % 8), (byte)1, false, this).length;
 		
 		return 
 			((whiteMaterialValue - blackMaterialValue) * 1) +
-			((whitePST - blackPST) * 1)
+			((whitePST - blackPST) * 1) +
+			((whiteBonus - blackBonus) * 1) +
+			((whiteKingSafety - blackKingSafety) * 1)
 		;
 	}
 	

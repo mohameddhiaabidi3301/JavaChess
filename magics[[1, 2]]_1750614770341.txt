@@ -1,4 +1,0 @@
-=== Magic Number Search Results for [[1, 2]] ===
-Started at: Sun Jun 22 13:52:50 EDT 2025
-
-PROGRESS: [1][Rook] 32 / 2048, (0xea4ba2487e65c8b9L) Attempt 0

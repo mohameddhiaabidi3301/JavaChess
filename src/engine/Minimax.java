@@ -4,7 +4,9 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.IntUnaryOperator;
 
 import debug.DebugRender;
@@ -109,41 +111,40 @@ public class Minimax {
 			previousBestMove = newMove;			
 			System.out.println("(" + ((System.nanoTime() - startTime) / 1_000_000) + " ms)" + "Move at depth " + currentDepth + ": " + Position.logMove(previousBestMove[0]) + ": " + Arrays.toString(previousBestMove));
 			
+			if (currentDepth > 50) break;
 		}
 		
 		return previousBestMove;
 	}
 	
 	static final int TT_SIZE = 1 << 22;
-	static long[] zobristKeys = new long[TT_SIZE];
+	static final AtomicLongArray zobristKeys = new AtomicLongArray(TT_SIZE);
 	static int[][] zobristValues = new int[TT_SIZE][4];
 	
-	public static AtomicInteger threadsCompleted = new AtomicInteger(0);
 	private static int[] initiateRootThreadedSearch(int depth, boolean isMaximizing, int alpha, int beta, int[] previousBestMove, long itdStartTime, int maxTime, int quiessenceCount, int ply) {
-		threadsCompleted.set(0);
-		
 		int[] legalMoves = Main.globalPosition.getAllLegalMoves((byte)(isMaximizing ? 0 : 1));
 		SearchThread[] threads = new SearchThread[legalMoves.length];
+		CountDownLatch latch = new CountDownLatch(legalMoves.length);
+		
 		for (int i = 0; i < legalMoves.length; i++) {
 			int move = legalMoves[i];
 			
-			SearchThread newThread = new SearchThread(move, depth-1, !isMaximizing, alpha, beta, previousBestMove, itdStartTime, maxTime, quiessenceCount, ply + 1);
+			SearchThread newThread = new SearchThread(move, depth-1, isMaximizing, alpha, beta, previousBestMove, itdStartTime, maxTime, quiessenceCount, ply + 1, latch);
 			newThread.start();
 			threads[i] = newThread;
 		}
 		
-		while (threadsCompleted.get() != legalMoves.length) {
-			try {
-				Thread.sleep(100L);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+		try {
+			latch.await();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
 		}
 		
-		int[] bestMove = new int[] {-1, (isMaximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE), 0, depth};
+		int[] bestMove = new int[] {-1, (isMaximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE), FLAG_TIMEOUT, depth};
 		for (int i = 0; i < threads.length; i++) {
 			SearchThread thread = threads[i];
 			int[] move = thread.getBestMove();
+			if (move[2] == FLAG_TIMEOUT) continue;
 			
 			if (isMaximizing && move[1] > bestMove[1]) {
 				bestMove = move;

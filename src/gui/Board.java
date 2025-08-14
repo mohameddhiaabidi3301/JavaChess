@@ -247,7 +247,7 @@ public class Board {
 								foundMatch = true;
 								
 								Main.globalPosition.makeMove(move, false);		
-								int[] computerMove = Minimax.getComputerMove(5, 5000, false);
+								int[] computerMove = Minimax.getComputerMove(6, 5000, false);
 								
 								System.out.println(Arrays.toString(computerMove));			
 								Main.globalPosition.makeMove(computerMove[0], false);
