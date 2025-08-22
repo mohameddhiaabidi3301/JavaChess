@@ -373,6 +373,8 @@ public class Position {
 	private Deque<long[]> zobristStack = new ArrayDeque<long[]>();
 
 	public boolean moveCausesCheck(int move) { // Checks if a move will cause a new check, before calling the actual move
+		if (move == -1) return false; 
+		
 		byte from = (byte)(move & 0x3F);
 		byte to = (byte)((move >>> 6) & 0x3F);
 		byte originKey = (byte)((move >>> 12) & 0xF);
