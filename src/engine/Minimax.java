@@ -252,11 +252,11 @@ public class Minimax {
 			byte promotionFlag = (byte)((move >>> 27) & 1L);
 			int[] scoreResult;
 			if (moveIndex >= 4 && depth >= 3 && !isCapture && !inCheck && promotionFlag == 0) {
-				int reduce = legalMoves.length > 7 ? 2 : 1;
+				int reduce = legalMoves.length > 10 ? 2 : 1;
 				Main.globalPosition.makeMove(move, true);
 				scoreResult = minimax(depth - 1 - reduce, !isMaximizing, alpha, beta, ply + 1);
 				
-				if (isMaximizing && scoreResult[1] > alpha) {
+				if ((isMaximizing && scoreResult[1] > alpha) || (!isMaximizing && scoreResult[1] < beta)) {
 					scoreResult = minimax(depth - 1, !isMaximizing, alpha, beta, ply + 1);
 				}
 			} else {

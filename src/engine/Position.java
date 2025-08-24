@@ -78,8 +78,8 @@ public class Position {
 		PrecompMoves.init();
 		initializeZobristHash();
 		
-		attacks[0] = getAttacks((byte)0, true);
-		attacks[1] = getAttacks((byte)1, true);
+		pseudolegalAttacks[0] = getPseudoLegalAttacks((byte)0);
+		pseudolegalAttacks[1] = getPseudoLegalAttacks((byte)1);
 		
 		pins[0] = LegalityCheck.getPinnedPieces((byte)0, this);
 		pins[1] = LegalityCheck.getPinnedPieces((byte)1, this);
@@ -294,6 +294,46 @@ public class Position {
 	public short whiteMaterialValue = 0;
 	public short blackMaterialValue = 0;
 	
+	public int[][] getPseudoLegalAttacks(byte color) {
+		int[][] attackBoard = new int[64][];
+		byte myKingPos = (byte)(color == 0 ? blackKingPos : whiteKingPos);
+		
+		int[] pieceLocations = (color == 0 ? MagicBitboards.getSetBits(whiteOccupied) : MagicBitboards.getSetBits(blackOccupied));
+		for (int square : pieceLocations) {
+			byte row = (byte)(square / 8);
+			byte col = (byte)(square % 8);
+			byte pieceType = engineLookup[square];
+
+			int[] moves = null;
+			if (pieceType == 1 || pieceType == 7) {
+				moves = PrecompMoves.precomputedMoves[color == 0 ? 2 : 3][square];	
+			} else if (pieceType == 6 || pieceType == 12) {
+				moves = PrecompMoves.precomputedMoves[5][square];
+			} else {
+				allOccupied &= ~(1L << myKingPos);
+				moves = KeyToPseudoMoves.pseudoMap[pieceType - 1].apply(row, col, color, true, this);
+				
+				allOccupied |= (1L << myKingPos);
+			}
+
+			for (int move : moves) {
+				byte from = (byte)(move & 0x3F);
+				byte to = (byte)((move >>> 6) & 0x3F);
+
+				if (attackBoard[to] == null) attackBoard[to] = new int[0];
+				int[] newArray = new int[attackBoard[to].length + 1];
+				
+				System.arraycopy(attackBoard[to], 0, newArray, 0, attackBoard[to].length);
+				newArray[newArray.length - 1] = from;
+				
+				attackBoard[to] = newArray;
+			}
+			
+		}
+		
+		return attackBoard;
+	}
+	
 	public int[][] getAttacks(byte color, boolean isInitialization) {
 		int[][] attackBoard = new int[64][];
 		byte myKingPos = (byte)(color == 0 ? blackKingPos : whiteKingPos);
@@ -463,6 +503,7 @@ public class Position {
 	}
 	
 	public int[][][] attacks = new int[2][][];
+	public int[][][] pseudolegalAttacks = new int[2][][];
 	public int[][] pins = new int[2][];
 	
 	private Deque<byte[]> enPassantStack = new ArrayDeque<byte[]>();
@@ -504,6 +545,9 @@ public class Position {
 	private void updateAttackAndPins() {
 		attacks[0] = getAttacks((byte)0, false);
 		attacks[1] = getAttacks((byte)1, false);
+		
+		pseudolegalAttacks[0] = getPseudoLegalAttacks((byte)0);
+		pseudolegalAttacks[1] = getPseudoLegalAttacks((byte)1);
 		
 		pins[0] = LegalityCheck.getPinnedPieces((byte)0, this);
 		pins[1] = LegalityCheck.getPinnedPieces((byte)1, this);
@@ -920,19 +964,22 @@ public class Position {
 		}
 		
 		// Bonus for side to move and check
-		if (sideToMove == 0) whiteBonus += 10; else blackBonus += 10;
-		if ((whiteAttackBitboard & (1L << blackKingPos)) != 0) whiteBonus += 10;
+		if (sideToMove == 0) whiteBonus += 15; else blackBonus += 15;
+		if ((whiteAttackBitboard & (1L << blackKingPos)) != 0) whiteBonus += 15;
 		if ((blackAttackBitboard & (1L << whiteKingPos)) != 0) blackBonus += 10;
 		
 		// Encourage keeping the king safe, queen map can be used for open files
 		int whiteKingSafety = 0;
 		int blackKingSafety = 0;
 		
-		whiteKingSafety -= KeyToPseudoMoves.pseudoMap[5].apply((byte)(whiteKingPos / 8), (byte)(whiteKingPos % 8), (byte)0, false, this).length;
-		blackKingSafety -= KeyToPseudoMoves.pseudoMap[5].apply((byte)(blackKingPos / 8), (byte)(blackKingPos % 8), (byte)1, false, this).length;
+		boolean isEndGame = (whiteMaterialValue + blackMaterialValue <= 1300);
+		if (!isEndGame) {
+			whiteKingSafety -= KeyToPseudoMoves.pseudoMap[5].apply((byte)(whiteKingPos / 8), (byte)(whiteKingPos % 8), (byte)0, false, this).length;
+			blackKingSafety -= KeyToPseudoMoves.pseudoMap[5].apply((byte)(blackKingPos / 8), (byte)(blackKingPos % 8), (byte)1, false, this).length;
+		}
 		
 		return 
-			((whiteMaterialValue - blackMaterialValue) * 1) +
+			((whiteMaterialValue - blackMaterialValue) * 2) +
 			((whitePST - blackPST) * 1) +
 			((whiteBonus - blackBonus) * 1) +
 			((whiteKingSafety - blackKingSafety) * 1)

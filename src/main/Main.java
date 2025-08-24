@@ -22,7 +22,7 @@ public class Main {
 		MagicBitboards.initMagicMasks();
 		
 		Position.initGlobalZobristKeys(); // Zobrist Keys are global across all threads
-		Position globalPos = new Position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
+		Position globalPos = new Position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 0");
 
 		globalPosition = globalPos;
 		Board.init();

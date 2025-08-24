@@ -127,7 +127,7 @@ public class LegalityCheck {
 		byte pieceId = (byte)((moveArray[0] >>> 12) & 0xF);
 		
 		int kingPosition = (color == 0) ? chessPosition.whiteKingPos : chessPosition.blackKingPos;
-		int[][] opponentAttacks = (color == 0) ? chessPosition.attacks[1] : chessPosition.attacks[0];
+		int[][] opponentAttacks = (color == 0) ? chessPosition.pseudolegalAttacks[1] : chessPosition.pseudolegalAttacks[0];
 		boolean inCheck = opponentAttacks[kingPosition] != null;
 		int[] kingAttackers = opponentAttacks[kingPosition];
 		int[] pinnedPieces = chessPosition.pins[color];
