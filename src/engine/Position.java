@@ -291,6 +291,8 @@ public class Position {
 	public short blackMoveCount = 0;
 	public long whiteAttackBitboard = 0L;
 	public long blackAttackBitboard = 0L;
+	public short whiteMaterialValue = 0;
+	public short blackMaterialValue = 0;
 	
 	public int[][] getAttacks(byte color, boolean isInitialization) {
 		int[][] attackBoard = new int[64][];
@@ -299,11 +301,13 @@ public class Position {
 		int[] pieceLocations = (color == 0 ? MagicBitboards.getSetBits(whiteOccupied) : MagicBitboards.getSetBits(blackOccupied));
 		if (color == 0) whiteMoveCount = 0; else blackMoveCount = 0;
 		if (color == 0) whiteAttackBitboard = 0L; else blackAttackBitboard = 0L;
+		if (color == 0) whiteMaterialValue = 0; else blackMaterialValue = 0;
 		
 		for (int square : pieceLocations) {
 			byte row = (byte)(square / 8);
 			byte col = (byte)(square % 8);
 			byte pieceType = engineLookup[square];
+			if (color == 0 && pieceType != 1 && pieceType != 7) whiteMaterialValue += EvaluateBoard.valueMap[pieceType]; else blackMaterialValue += EvaluateBoard.valueMap[pieceType];
 			
 			int[] moves = null;
 			if (pieceType == 1 || pieceType == 7) {
@@ -343,6 +347,20 @@ public class Position {
 		return attackBoard;
 	}
 	
+	public int getSmallestAttacker(byte square, byte STM) {
+		final int[] valueMap = EvaluateBoard.valueMap;
+		int[] attackers = this.attacks[STM][square];
+		int smallestAttacker = attackers[0];
+		
+		for (int i = 0; i < attackers.length; i++) {
+			if (valueMap[engineLookup[attackers[i]]] < valueMap[engineLookup[smallestAttacker]]) {
+				smallestAttacker = attackers[i];
+			}
+		}
+		
+		return smallestAttacker;
+	}
+	
 	public int[] getAllLegalMoves(byte color) {
 		int[] moves = new int[128];
 		int moveCount = 0;
@@ -360,6 +378,85 @@ public class Position {
 			System.arraycopy(subMoves, 0, moves, moveCount, subMoves.length);
 			
 			moveCount += subMoves.length;
+		}
+		
+		return Arrays.copyOf(moves, moveCount);
+	}
+	
+	public int[] getAllCapturesChecks(byte color) {
+		int[] moves = new int[64];
+		int moveCount = 0;
+		
+		long opponentOccupancy = (color == 0) ? blackOccupied : whiteOccupied;
+		long myOccupied = (color == 0) ? whiteOccupied : blackOccupied;
+		long myAttacks = (color == 0) ? whiteAttackBitboard : blackAttackBitboard;
+		long captures = myAttacks & opponentOccupancy;
+		
+		// Checks
+		byte opponentKingPos = color == 0 ? blackKingPos : whiteKingPos;
+		byte myKingPos = color == 0 ? whiteKingPos : blackKingPos;
+		
+		for (int square : MagicBitboards.getSetBits(bitboards[color == 0 ? 3 : 9])) {
+			long ourRange = MagicBitboards.bishopAttackMasks[square];
+			long canCheckSquares = MagicBitboards.bishopAttackMasks[opponentKingPos];
+			long checkingMoves = (ourRange & canCheckSquares) &~ allOccupied; // Exclude Captures
+			
+			for (int checkTarget : MagicBitboards.getSetBits(checkingMoves)) {
+				if ((MagicBitboards.lineBB((byte)square, (byte)checkTarget) & allOccupied) != 0) continue;
+				if ((MagicBitboards.lineBB((byte)checkTarget, (byte)opponentKingPos) & allOccupied) != 0) continue;
+				
+				int move = square;
+				move |= (checkTarget << 6);
+				move |= ((color == 0 ? 3 : 9) << 12);
+				move |= (0 << 16); // Must not be a capture
+				move |= (color << 31);
+				
+				moves[moveCount++] = move;
+			}
+		}
+		
+		for (int square : MagicBitboards.getSetBits(bitboards[color == 0 ? 4 : 10])) {
+			long ourRange = MagicBitboards.rookAttackMasks[square];
+			long canCheckSquares = MagicBitboards.rookAttackMasks[opponentKingPos];
+			long checkingMoves = (ourRange & canCheckSquares) &~ allOccupied; // Exclude Captures
+			
+			for (int checkTarget : MagicBitboards.getSetBits(checkingMoves)) {
+				if ((MagicBitboards.lineBB((byte)square, (byte)checkTarget) & allOccupied) != 0) continue;
+				if ((MagicBitboards.lineBB((byte)checkTarget, (byte)opponentKingPos) & allOccupied) != 0) continue;
+				
+				int move = square;
+				move |= (checkTarget << 6);
+				move |= ((color == 0 ? 4 : 10) << 12);
+				move |= (0 << 16); // Must not be a capture
+				move |= (color << 31);
+				
+				moves[moveCount++] = move;
+			}
+		}
+		
+		int[] legalMoves = LegalityCheck.legal(Arrays.copyOf(moves, moveCount), this);
+		moves = new int[64];
+		System.arraycopy(legalMoves, 0, moves, 0, legalMoves.length);
+		moveCount = legalMoves.length;
+		
+		// Captures
+		for (int target : MagicBitboards.getSetBits(captures)) {
+			int[] pieces = attacks[color][target];
+			
+			for (int location : pieces) {
+				int move = location;
+				move |= (target << 6);
+				move |= (engineLookup[location] << 12);
+				move |= (engineLookup[target] << 16);
+				move |= (color << 31);
+				
+				if (engineLookup[location] == 1 || engineLookup[location] == 7) {
+					move |= ((target == enPassantTarget ? 1 : 0) << 29);
+					move |= (((target / 8 == 0 || target / 8 == 7) ? 1 : 0) << 27);
+				}
+				
+				moves[moveCount++] = move;
+			}
 		}
 		
 		return Arrays.copyOf(moves, moveCount);
@@ -622,6 +719,7 @@ public class Position {
 		cardinalThreats[3] = bitboards[9] | bitboards[11];
 		
 		updateAttackAndPins();
+		Minimax.repetitionHistory[Minimax.historyPly++] = zobristHash;
 	}
 	
 	public void unmakeMove(int move) {
@@ -775,6 +873,7 @@ public class Position {
 		cardinalThreats[3] = bitboards[9] | bitboards[11];
 		
 		updateAttackAndPins();
+		Minimax.historyPly--;
 	}
 	
 	public void toggleNullMove() {

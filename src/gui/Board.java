@@ -246,14 +246,15 @@ public class Board {
 								
 								foundMatch = true;
 								
-								Main.globalPosition.makeMove(move, false);		
-								int[] computerMove = Minimax.getComputerMove(1, 5000, false);
+								Main.globalPosition.makeMove(move, false);			
+								int[] computerMove = Minimax.getComputerMove(1, 1500, false);
 								
-								System.out.println(Arrays.toString(computerMove));			
-								Main.globalPosition.makeMove(computerMove[0], false);
+								if (computerMove[0] != -1) {
+									System.out.println(Arrays.toString(computerMove));			
+									Main.globalPosition.makeMove(computerMove[0], false);
+								} else System.out.println("Game Over");
 								
-								renderAllPieces();
-								
+								renderAllPieces();		
 								break;
 							} else {
 								foundMatch = true;

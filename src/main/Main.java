@@ -12,6 +12,7 @@ import gui.Board;
 
 public class Main {
 	public static Position globalPosition;
+	// rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - Default Fen
 	
 	public static void main(String[] args) {
 		LegalityCheck.init();
@@ -21,7 +22,7 @@ public class Main {
 		MagicBitboards.initMagicMasks();
 		
 		Position.initGlobalZobristKeys(); // Zobrist Keys are global across all threads
-		Position globalPos = new Position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq");
+		Position globalPos = new Position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
 
 		globalPosition = globalPos;
 		Board.init();

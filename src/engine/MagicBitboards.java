@@ -443,6 +443,11 @@ public class MagicBitboards {
 	
 	public static long[] columnMasks = new long[64];
 	public static long[][] pawnAttackMasks = new long[2][64];
+	public static long[] queenMasks = new long[64];
+	public static long[] rookAttackMasks = new long[64];
+	public static long[] bishopAttackMasks = new long[64];
+	public static long[] knightMasks = new long[64];
+	
 	public static void initMagicMasks() {
 		// Column masks
 		long column = (1L | 1L << 8 | 1L << 16 | 1L << 24 | 1L << 32 | 1L << 40 | 1L << 48 | 1L << 56);
@@ -456,6 +461,7 @@ public class MagicBitboards {
 			int row = square / 8;
 			int col = square % 8;
 			
+			// Pawns
 			for (int c = 0; c <= 1; c++) {
 				long mask = 0L;
 				int moveDir = (c == 0) ? 1 : -1;
@@ -470,6 +476,73 @@ public class MagicBitboards {
 				
 				pawnAttackMasks[c][square] = mask;
 			}
+			
+			// Queens
+			long queenMask = 0L;
+			int[][] queenDirs = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}};
+			
+			for (int[] direction : queenDirs) {
+				for (int i = 1; i < 8; i++) {
+					int targetRow = row + direction[0] * i;
+					int targetCol = col + direction[1] * i;
+					
+					if (withinBounds(targetRow, targetCol, 0, 7)) {
+						queenMask |= (1L << (targetRow * 8 + targetCol));
+					} else break;
+				}
+			}
+			
+			// Knights
+			long knightMask = 0L;
+			int[][] knightDirs = {{-2, -1}, {-2, 1}, {2, -1}, {2, 1},
+					{-1, -2}, {-1, 2}, {1, -2}, {1, 2}};
+			
+			for (int[] direction : knightDirs) {
+				int targetRow = row + direction[0];
+				int targetCol = col + direction[1];
+				
+				if (withinBounds(targetRow, targetCol, 0, 7)) {
+					knightMask |= (1L << (targetRow * 8 + targetCol));
+				}
+ 			}
+			
+			long bishopMask = 0L;
+			int[][] bishopDirs = {{1, 1}, {-1, -1}, {-1, 1}, {1, -1}};
+			for (int[] direction : bishopDirs) {
+				for (int i = 1; i < 8; i++) {
+					int targetRow = row + direction[0] * i;
+					int targetCol = col + direction[1] * i;
+					
+					if (withinBounds(targetRow, targetCol, 0, 7)) {
+						bishopMask |= (1L << (targetRow * 8 + targetCol));
+					} else break;
+				}
+			}
+			
+			long rookMask = 0L;
+			int[][] rookDirs = {{0, 1}, {1, 0}, {-1, 0}, {0, -1}};
+			for (int[] direction : rookDirs) {
+				for (int i = 1; i < 8; i++) {
+					int targetRow = row + direction[0] * i;
+					int targetCol = col + direction[1] * i;
+					
+					if (withinBounds(targetRow, targetCol, 0, 7)) {
+						rookMask |= (1L << (targetRow * 8 + targetCol));
+					} else break;
+				}
+			}
+			
+			queenMasks[square] = queenMask;
+			knightMasks[square] = knightMask;
+			bishopAttackMasks[square] = bishopMask;
+			rookAttackMasks[square] = rookMask;
+			
+			/*
+			 * int test = 39; if (square == test) DebugRender.renderLong(queenMask); if
+			 * (square == test) DebugRender.renderLong(knightMask); if (square == test)
+			 * DebugRender.renderLong(bishopMask); if (square == test)
+			 * DebugRender.renderLong(rookMask);
+			 */
 		}
 	}
 	

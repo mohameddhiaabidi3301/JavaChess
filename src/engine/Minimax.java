@@ -29,48 +29,6 @@ public class Minimax {
 	private static final int[] valueMap = EvaluateBoard.valueMap;
 	static int[][] killerMoves = new int[128][2];
 	
-	private static void sortLVA(int[] arr) {
-		int i = 1;
-		
-		while (i < arr.length) {
-			int j = i;
-			while (j > 0 && (valueMap[Main.globalPosition.engineLookup[arr[i-1]]] > valueMap[Main.globalPosition.engineLookup[arr[i]]])) {
-				int temp = arr[j];
-				arr[j] = arr[j-1];
-				arr[j-1] = temp;
-				
-				j--;
-			}
-			i++;
-		}
-	}
-	
-	private static int SEE(int origin, int targetSquare, byte startingColor) {
-		int[] ourAttackers = Main.globalPosition.attacks[startingColor][targetSquare];
-		int[] opponentAttackers = Main.globalPosition.attacks[1 - startingColor][targetSquare];
-		sortLVA(ourAttackers);
-		sortLVA(opponentAttackers);
-		
-		byte currentColor = (byte)(1 - startingColor);
-		int score = 0;
-		int usedMy = 0;
-		int usedOpponents = 0;
-		
-		while (usedMy < ourAttackers.length && usedOpponents < opponentAttackers.length) {
-			if (currentColor == startingColor) {
-				score += opponentAttackers[valueMap[Main.globalPosition.engineLookup[usedOpponents]]];
-				
-				usedOpponents++;
-			} else {
-				score -= ourAttackers[valueMap[Main.globalPosition.engineLookup[usedMy]]];
-				
-				usedMy++;
-			}
-		}
-		
-		return score;
-	}
-	
 	private static int moveScoreHeuristic(int move, int pvMove, int ply) {
 		byte to = (byte)((move >>> 6) & 0x3F);
 		byte pieceType = (byte)((move >>> 12) & 0xF);
@@ -83,11 +41,11 @@ public class Minimax {
 		
 		if (captureType != 0) {
 			// ~90,000 Max
-			score += (captureValue * 100 - ourValue); // All Captures looked upon favorably, but best first
+			score += (captureValue * 100 - ourValue);
 		}
 		
 		if (pvMove == move) score += 1_000_000;
-		if (move == killerMoves[ply][0] || move == killerMoves[ply][1]) score += 900_000;
+		if (move == killerMoves[ply][0] || move == killerMoves[ply][1]) score += 500_000;
 		
 		return score;
 	}
@@ -148,10 +106,98 @@ public class Minimax {
 	static int tableSize = 1 << 26;
 	static long[] zobristKeys = new long[tableSize];
 	static int[][] zobristValues = new int[tableSize][4];
+	static final int MAX_QUIESSENCE_PLY = 12;
+	static final int DELTA_PRUNING_MARGIN = 200; // centi-pawns
+	
+	static long[] repetitionHistory = new long[256];
+	static int historyPly = 0;
+	
+	private static boolean isThreefoldRepetition() {
+		int count = 0;
+		for (int i = 0; i < historyPly; i++) {
+			if (repetitionHistory[i] == Main.globalPosition.zobristHash) {
+				count++;
+			}
+			
+			if (count >= 2) return true;
+		}
+		return false;
+	}
+	
+	private static int quiescence(int alpha, int beta, boolean isMaximizing, int ply) {
+		if (ply >= MAX_QUIESSENCE_PLY) {
+			return Main.globalPosition.getEval();
+		}
+
+		boolean currentlyInCheck = isMaximizing ? Main.globalPosition.attacks[1][Main.globalPosition.whiteKingPos] != null : Main.globalPosition.attacks[0][Main.globalPosition.blackKingPos] != null;
+		int standPat = Main.globalPosition.getEval();
+		
+		if (!currentlyInCheck) {
+			if (isMaximizing) {
+		        if (standPat >= beta) {
+		            return beta; // Fail-hard beta cutoff
+		        }
+		        alpha = Math.max(alpha, standPat);
+		    } else {
+		        if (standPat <= alpha) {
+		            return alpha; // Fail-hard alpha cutoff
+		        }
+		        beta = Math.min(beta, standPat);
+		    }
+		}
+		
+		int[] allMoves = 
+				currentlyInCheck ? Main.globalPosition.getAllLegalMoves((byte)(isMaximizing ? 0 : 1)) :
+				Main.globalPosition.getAllCapturesChecks((byte)(isMaximizing ? 0 : 1));
+		sortByScore(allMoves, -1, ply);
+		
+		if (allMoves.length == 0) {
+			if (currentlyInCheck) {
+				return isMaximizing ? -999_999 + ply : 999_999 - ply;
+			} else return standPat;
+		}
+		
+		if (isThreefoldRepetition()) return standPat;
+		
+		for (int move : allMoves) {
+			if (!currentlyInCheck) {
+				byte captureType = (byte)((move >>> 16) & 0xF);
+				
+				if (captureType != 0) {
+					int captureValue = valueMap[captureType];
+					
+					if (isMaximizing && (standPat + captureValue + DELTA_PRUNING_MARGIN < alpha)) {
+						continue;
+					} else if (!isMaximizing && (standPat - captureValue - DELTA_PRUNING_MARGIN > beta)) {
+						continue;
+					}
+				}
+			}
+
+			Main.globalPosition.makeMove(move, true);
+			
+			int score = quiescence(alpha, beta, !isMaximizing, ply + 1);
+			Main.globalPosition.unmakeMove(move);
+			
+			if (isMaximizing) {
+				if (score >= beta) {
+					return beta;
+				}
+				alpha = Math.max(alpha, score);
+			} else {
+				if (score <= alpha) {
+					return alpha;
+				}
+				beta = Math.min(beta, score);
+			}
+		}
+		
+		return isMaximizing ? alpha : beta;
+	}
 	
 	private static int[] minimax(int depth, boolean isMaximizing, int alpha, int beta, int ply) {
-		if (depth == 0) {
-			return new int[] {-1, Main.globalPosition.getEval(), -1, depth};
+		if (depth <= 0) {
+			return new int[] {-1, quiescence(alpha, beta, isMaximizing, ply), -1, depth};
 		}
 		
 		int zobristIndex = (int)(Main.globalPosition.zobristHash & (tableSize - 1));
@@ -177,15 +223,48 @@ public class Minimax {
 		int pvMove = zobristKeys[zobristIndex] == Main.globalPosition.zobristHash ? zobristValues[zobristIndex][0] : -1;
 		sortByScore(legalMoves, pvMove, ply);
 		
+		boolean inCheck = Main.globalPosition.attacks[isMaximizing ? 1 : 0][isMaximizing ? Main.globalPosition.whiteKingPos : Main.globalPosition.blackKingPos] != null;
+		if (legalMoves.length == 0) {
+			if (inCheck) {
+				return new int[] {-1, isMaximizing ? -999_999 + ply : 999_999 - ply, -1, depth};
+			} else {
+				return new int[] {-1, 0, -1, depth};
+			}
+		}
+		
+		if (isThreefoldRepetition()) return new int[] {-1, 0, -1, depth};
+		boolean isEndGame = (Main.globalPosition.whiteMaterialValue + Main.globalPosition.blackMaterialValue <= 1300);
+		int R = 2;
+		if (!isEndGame && ply > 0 && depth > R + 1 && !inCheck) {
+			Main.globalPosition.toggleNullMove();
+			int[] score = minimax(depth - 1 - R, !isMaximizing, alpha, beta, ply + 1);
+			score[1] = -score[1];
+			Main.globalPosition.toggleNullMove();
+			
+			if (score[1] >= beta) {
+				return new int[] {-1, beta, isMaximizing ? FLAG_LOWERBOUND : FLAG_UPPERBOUND, depth };
+			}
+		}
+		
 		int moveIndex = 0;
 		for (int move : legalMoves) {
 			boolean isCapture = (byte)((move >>> 16) & 0xF) != 0;
-			byte promotionKey = (byte)((move >>> 22) & 0xF);
+			byte promotionFlag = (byte)((move >>> 27) & 1L);
+			int[] scoreResult;
+			if (moveIndex >= 4 && depth >= 3 && !isCapture && !inCheck && promotionFlag == 0) {
+				int reduce = legalMoves.length > 7 ? 2 : 1;
+				Main.globalPosition.makeMove(move, true);
+				scoreResult = minimax(depth - 1 - reduce, !isMaximizing, alpha, beta, ply + 1);
+				
+				if (isMaximizing && scoreResult[1] > alpha) {
+					scoreResult = minimax(depth - 1, !isMaximizing, alpha, beta, ply + 1);
+				}
+			} else {
+				Main.globalPosition.makeMove(move, true);
+				scoreResult = minimax(depth - 1, !isMaximizing, alpha, beta, ply + 1);
+			}
 			
-			Main.globalPosition.makeMove(move, true);
-			int[] scoreResult = minimax(depth - 1, !isMaximizing, alpha, beta, ply + 1);
 			Main.globalPosition.unmakeMove(move);
-			
 			if (isMaximizing) {
 				if (scoreResult[1] > bestMove[1]) {
 					bestMove = scoreResult;
@@ -206,7 +285,7 @@ public class Minimax {
 				bestMove[2] = isMaximizing ? FLAG_LOWERBOUND : FLAG_UPPERBOUND;
 				
 				// Move caused cutoff, add killer
-				if (!isCapture && promotionKey == 0) {
+				if (!isCapture && promotionFlag == 0 && killerMoves[ply][0] != move) {
 					killerMoves[ply][1] = killerMoves[ply][0];
 					killerMoves[ply][0] = move;
 				}
