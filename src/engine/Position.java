@@ -337,6 +337,12 @@ public class Position {
 	long[] psuedoAttacks = new long[2];
 	long[] testLegalCaptures = new long[2]; // Filtered version of psuedoAttacks
 	long[] testPins = new long[2];
+	long[] imobilizedPieces = new long[2];
+	
+	byte whiteKingAttacker = -1;
+	byte blackKingAttacker = -1;
+	boolean whiteKingAttackerIsRay = false;
+	boolean blackKingAttackerIsRay = false;
 	
 	public long getAttackersForSquare(byte color, byte square) {
 		long mask = 0L;
@@ -364,11 +370,15 @@ public class Position {
 		
 		int[] pieceLocations = (color == 0 ? MagicBitboards.getSetBits(whiteOccupied) : MagicBitboards.getSetBits(blackOccupied));
 		byte kingPos = (color == 0 ? whiteKingPos : blackKingPos);
+		byte opponentKingPos = (color == 0 ? blackKingPos : whiteKingPos);
 		boolean inCheck = (psuedoAttacks[color] & (1L << kingPos)) != 0;
-		byte ourAttacker = (byte)(inCheck ? MagicBitboards.getSetBits(getAttackersForSquare((byte)(1 - color), kingPos))[0] : -1);
+		byte ourAttacker = (color == 0 ? whiteKingAttacker : blackKingAttacker);
+		boolean ourAttackerIsRay = (color == 0 ? whiteKingAttackerIsRay : blackKingAttackerIsRay);
 		
 		for (int square : pieceLocations) {
 			byte type = (byte)(engineLookup[square] % 6);
+			long pieceAttacks = 0L;
+			long legalAttacks = 0L;
 			
 			if (type == 3 || type == 4) { // Rooks and Bishops, magic bitboards
 				long blockerMask = type == 3 ? MagicBitboards.bishopMasks[square] : MagicBitboards.rookMasks[square];
@@ -379,25 +389,35 @@ public class Position {
 				long product = (relevantBlockers * magic);
 				int hash = (int)(product >>> shift);
 				
-				long attacks = type == 3 ? MagicBitboards.bishopBitTableLookup[square][hash] :
-					MagicBitboards.rookBitTableLookup[square][hash];
-				
-				if (inCheck) {
-					
-				}
-				
-				psuedoAttacks[color] |= (attacks);
-			} else if (type == 5) {
+				pieceAttacks = (type == 3 ? MagicBitboards.bishopBitTableLookup[square][hash] :
+					MagicBitboards.rookBitTableLookup[square][hash]);
+			} else if (type == 5) { // Queens
 				long rookAttacks = MagicBitboards.rookBitTableLookup[square][(int)(((MagicBitboards.rookMasks[square] & allOccupied) * MagicBitboards.rookMagics[square]) >>> MagicBitboards.rookShifts[square])];
 				long bishopAttacks = MagicBitboards.bishopBitTableLookup[square][(int)(((MagicBitboards.bishopMasks[square] & allOccupied) * MagicBitboards.bishopMagics[square]) >>> MagicBitboards.bishopShifts[square])];
 				
 				long queenAttacks = rookAttacks | bishopAttacks;
-				psuedoAttacks[color] |= (queenAttacks);
-			} else if (type == 1) {
-				psuedoAttacks[color] |= MagicBitboards.pawnAttackMasks[color][square];
-			} else {
-				psuedoAttacks[color] |= MagicBitboards.globalMasks[type][square];
+				pieceAttacks = (queenAttacks);
+			} else if (type == 1) { // Pawns
+				pieceAttacks = MagicBitboards.pawnAttackMasks[color][square];
+			} else { // Knights and Kings
+				pieceAttacks = MagicBitboards.globalMasks[type][square];
 			}
+			
+			if (inCheck || (testPins[color] & (1L << square)) != 0) {
+				legalAttacks = pieceAttacks & ((ourAttackerIsRay ? MagicBitboards.lineBB(kingPos, ourAttacker) : 0) | (1L << ourAttacker));
+			} else if ((imobilizedPieces[color] & (1L << square)) == 0) {
+				legalAttacks = pieceAttacks;
+			}
+			
+			if (type == 6) legalAttacks &= ~psuedoAttacks[1-color];
+			if ((pieceAttacks & (1L << opponentKingPos)) != 0) {
+				boolean isRay = (type == 3 || type == 4 || type == 5);
+				if (color == 0) blackKingAttacker = (byte)(square); else whiteKingAttacker = (byte)(square);
+				if (color == 0) blackKingAttackerIsRay = isRay; else whiteKingAttackerIsRay = isRay;
+			}
+			
+			psuedoAttacks[color] |= pieceAttacks;
+			testLegalCaptures[color] |= legalAttacks;
 		}
 		
 		DebugRender.renderLong(psuedoAttacks[color]);
