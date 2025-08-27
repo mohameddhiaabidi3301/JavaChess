@@ -53,6 +53,26 @@ public class LegalityCheck {
 		}
 	}
 	
+	public static long getPinnedPieceBitboard(byte color, Position chessPosition) {
+		byte accessColor = (byte)(color == 0 ? 6 : 0);
+		byte myKingPos = (color == 0 ? chessPosition.whiteKingPos : chessPosition.blackKingPos);
+		long opponentRayPieces = (chessPosition.bitboards[3 + accessColor] | chessPosition.bitboards[4 + accessColor] | chessPosition.bitboards[5 + accessColor]) & MagicBitboards.queenMasks[myKingPos];
+		long allPinsMask = 0L;
+		
+		for (int square : MagicBitboards.getSetBits(opponentRayPieces)) {
+			long ray = MagicBitboards.lineBB((byte)square, myKingPos) & chessPosition.allOccupied;
+			long blockers = ray & chessPosition.allOccupied;
+			
+			if (Long.bitCount(blockers) == 1) {
+				if ((blockers & (color == 0 ? chessPosition.whiteOccupied : chessPosition.blackOccupied)) != 0) {
+					allPinsMask |= blockers;
+				}
+			}
+		}
+		
+		return allPinsMask;
+	}
+	
 	public static int[] getPinnedPieces(byte colorId, Position chessPosition) {
 		int[] pinBoard = new int[64];
 		Arrays.fill(pinBoard, -1);
