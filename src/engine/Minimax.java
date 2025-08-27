@@ -250,6 +250,8 @@ public class Minimax {
 		for (int move : legalMoves) {
 			boolean isCapture = (byte)((move >>> 16) & 0xF) != 0;
 			byte promotionFlag = (byte)((move >>> 27) & 1L);
+			if (promotionFlag != 0) move |= ((isMaximizing ? 5 : 11) << 22); // Promote to queen
+			
 			int[] scoreResult;
 			if (moveIndex >= 4 && depth >= 3 && !isCapture && !inCheck && promotionFlag == 0) {
 				int reduce = legalMoves.length > 10 ? 2 : 1;

@@ -56,6 +56,8 @@ public class MagicBitboards {
 	
 	public static int[][][] rookLookupTable = new int[64][][];
 	public static int[][][] bishopLookupTable = new int[64][][];
+	public static long[][] rookBitTableLookup = new long[64][];
+	public static long[][] bishopBitTableLookup = new long[64][];
 	
 	public static long[] rookMasks = new long[64];
 	public static long[] bishopMasks = new long[64];
@@ -174,6 +176,39 @@ public class MagicBitboards {
 		return Arrays.copyOf(moves, moveCount);
 	}
 	
+	public static long simulateBitboardRook(int row, int col, long blockerPermutation) {
+		int[][] moveDirections = {
+				{0, 1},
+				{1, 0},
+				{0, -1},
+				{-1, 0},
+		};
+		
+		long mask = 0L;
+		int square = row * 8 + col;
+		
+		for (int[] direction : moveDirections) {
+			int terminalRow = getFullTerminalPoint(direction[0], row);
+			int terminalCol = getFullTerminalPoint(direction[1], col);
+			
+			if (row == terminalRow && col == terminalCol) continue;
+			
+			for (int i = 1; i < 8; i++) {
+				int targetRow = row + (direction[0] * i);
+				int targetCol = col + (direction[1] * i);
+				int targetSquare = targetRow * 8 + targetCol;
+				if (i == 1 && !withinBounds(targetRow, targetCol, 0, 7)) break;
+				
+				mask |= (1L << targetSquare);
+				
+				if (targetRow == terminalRow && targetCol == terminalCol) break;
+				if ((blockerPermutation & (1L << targetSquare)) != 0) break;
+			}
+		}
+		
+		return mask;
+	}
+	
 	public static int[] simulateBishop(int row, int col, long blockerPermutation) {
 		int[][] moveDirections = {
 				{1, 1},
@@ -209,6 +244,36 @@ public class MagicBitboards {
 		return Arrays.copyOf(moves, moveCount);
 	}
 	
+	public static long simulateBitboardBishop(int row, int col, long blockerPermutation) {
+		int[][] moveDirections = {
+				{1, 1},
+				{1, -1},
+				{-1, 1},
+				{-1, -1},
+		};
+		
+		long mask = 0L;
+		for (int[] direction : moveDirections) {
+			for (int i = 1; i < 8; i++) {
+				int targetRow = row + (direction[0] * i);
+				int targetCol = col + (direction[1] * i);
+				int targetSquare = targetRow * 8 + targetCol;
+				long dataAtTarget = ((blockerPermutation & (1L << targetSquare)));
+				
+				if (i == 1 && !withinBounds(targetRow, targetCol, 0, 7)) break;
+				if (!withinBounds(targetRow, targetCol, 0, 7)) break;
+				
+				mask |= (1L << targetSquare);
+				
+				if (dataAtTarget != 0) {
+					break;
+				}
+			}
+		}
+		
+		return mask;
+	}
+	
 	public static void initRookLookups() {
 		int collisionCount = 0;
 		for (int square = 0; square < 64; square++) {
@@ -223,6 +288,7 @@ public class MagicBitboards {
 			long magic = rookMagics[square];
 			
 			rookLookupTable[square] = new int[numPermutations][];
+			rookBitTableLookup[square] = new long[numPermutations];
 			rookMasks[square] = blockerMask;
 			rookShifts[square] = shift;
 			
@@ -246,6 +312,7 @@ public class MagicBitboards {
 				}
 				
 				rookLookupTable[square][hashIndex] = pseudoMoves;
+				rookBitTableLookup[square][hashIndex] = simulateBitboardRook(row, col, permutation);
 			}
 		}
 		
@@ -268,6 +335,7 @@ public class MagicBitboards {
 			long magic = bishopMagics[square];
 			
 			bishopLookupTable[square] = new int[numPermutations][];
+			bishopBitTableLookup[square] = new long[numPermutations];
 			bishopMasks[square] = blockerMask;
 			bishopShifts[square] = shift;
 			
@@ -291,6 +359,7 @@ public class MagicBitboards {
 				}
 				
 				bishopLookupTable[square][hashIndex] = pseudoMoves;
+				bishopBitTableLookup[square][hashIndex] = simulateBitboardBishop(row, col, permutation);
 			}
 		}
 		
@@ -447,6 +516,8 @@ public class MagicBitboards {
 	public static long[] rookAttackMasks = new long[64];
 	public static long[] bishopAttackMasks = new long[64];
 	public static long[] knightMasks = new long[64];
+	public static long[] kingMasks = new long[64];
+	public static long[][] globalMasks = new long[13][64];
 	
 	public static void initMagicMasks() {
 		// Column masks
@@ -532,10 +603,38 @@ public class MagicBitboards {
 				}
 			}
 			
+			long kingMask = 0L;
+			int[][] kingVectors = {
+					{-1, 0}, {1, 0}, {0, -1}, {0, 1},
+				    {-1, -1}, {-1, 1}, {1, -1}, {1, 1}	
+			};
+			
+			for (int[] vector : kingVectors) {
+				int targetRow = row + vector[0];
+				int targetCol = col + vector[1];
+				
+				if (withinBounds(targetRow, targetCol, 0, 7)) {
+					kingMask |= (1L << (targetRow * 8 + targetCol));
+				}
+			}
+			
 			queenMasks[square] = queenMask;
 			knightMasks[square] = knightMask;
 			bishopAttackMasks[square] = bishopMask;
 			rookAttackMasks[square] = rookMask;
+			kingMasks[square] = kingMask;
+			
+			globalMasks[2] = knightMasks;
+			globalMasks[3] = bishopAttackMasks;
+			globalMasks[4] = rookAttackMasks;
+			globalMasks[5] = queenMasks;
+			globalMasks[6] = kingMasks;
+			
+			globalMasks[8] = knightMasks;
+			globalMasks[9] = bishopAttackMasks;
+			globalMasks[10] = rookAttackMasks;
+			globalMasks[11] = queenMasks;
+			globalMasks[12] = kingMasks;
 			
 			/*
 			 * int test = 39; if (square == test) DebugRender.renderLong(queenMask); if
@@ -597,3 +696,5 @@ public class MagicBitboards {
 		return lines[squareStart][squareEnd];
 	}
 }
+
+
