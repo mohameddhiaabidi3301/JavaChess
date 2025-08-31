@@ -59,7 +59,7 @@ public class Board {
 		
 		int[] moves = new int[0];
 		if (Main.globalPosition.engineLookup[square] != 0) {
-			moves = KeyToLegalMoves.pseudoMap[Main.globalPosition.engineLookup[square] - 1].apply((byte)row, (byte)col, (byte)colorKey, false, Main.globalPosition);
+			moves = Main.globalPosition.getLegalMovesForPiece((byte)square, colorKey);
 		}
 		
 		JPanel component = (JPanel)piecePanel.getComponentAt(clickX, clickY);
@@ -238,6 +238,7 @@ public class Board {
 						int promotionRow = (activeDrag.pieceColor == "white") ? 7 : 0;
 						boolean isPawn = pieceId == 1 || pieceId == 7;
 						boolean isPromotion = (to / 8 == promotionRow && isPawn);
+						boolean isCapture = ((move >>> 16) & 0xF) != 0;
 						
 						if (square == to) {
 							if (!isPromotion) {
@@ -245,16 +246,16 @@ public class Board {
 								activeComponent.setBounds(col * tileSize, (7 - row) * tileSize, tileSize, tileSize);
 								
 								foundMatch = true;
+								Main.globalPosition.makeMove(move, false);		
+													
 								
-								Main.globalPosition.makeMove(move, false);			
-								int[] computerMove = Minimax.getComputerMove(1, 1500, false);
+								int[] computerMove = Minimax.getComputerMove(1, 500, false);
+								 
+								System.out.println(Arrays.toString(computerMove));
+								Main.globalPosition.makeMove(computerMove[0], false);
 								
-								if (computerMove[0] != -1) {
-									System.out.println(Arrays.toString(computerMove));			
-									Main.globalPosition.makeMove(computerMove[0], false);
-								} else System.out.println("Game Over");
+								renderAllPieces();
 								
-								renderAllPieces();		
 								break;
 							} else {
 								foundMatch = true;
@@ -318,5 +319,6 @@ public class Board {
 		});
 	}
 }
+
 
 

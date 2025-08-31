@@ -13,10 +13,23 @@ import debug.DebugRender;
 import main.Main;
 
 public class Minimax {
+	public static final int FLAG_EXACT = 0; // No cutoffs were performed
+	public static final int FLAG_LOWERBOUND = 1; // (beta cutoff), cache value must be >= beta
+	public static final int FLAG_UPPERBOUND = 2; // (alpha cutoff), cache value must be <= alpha
+	public static final int FLAG_TIMEOUT = 3; // Used if the search timed out
+	
+	public static final int MATE_SCORE = 999_999;
+	public static final int DRAW_SCORE = 0;
+	
+	private static final int[] valueMap = EvaluateBoard.valueMap;
+	static int[][] killerMoves = new int[128][2]; // Moves that caused beta cutoff
+	static int[][] counterHeuristic = new int[64][64]; // The last best replies to each move
+	static int[][][] historyHeuristic = new int[2][64][64];
+	
 	public static int[] getComputerMove(int minDepth, int maxMs, boolean isMaximizing) {
 		long startTime = System.nanoTime();
 		
-		int[] move = iterativeDeepening(minDepth, maxMs, false);
+		int[] move = iterativeDeepening(minDepth, maxMs, isMaximizing);
 		
 		long endTime = System.nanoTime();
 		int millisecondsEllapsed = (int)((endTime - startTime) / 1_000_000);
@@ -25,9 +38,6 @@ public class Minimax {
 		
 		return move;
 	}
-	
-	private static final int[] valueMap = EvaluateBoard.valueMap;
-	static int[][] killerMoves = new int[128][2];
 	
 	private static int moveScoreHeuristic(int move, int pvMove, int ply) {
 		byte to = (byte)((move >>> 6) & 0x3F);
@@ -46,6 +56,13 @@ public class Minimax {
 		
 		if (pvMove == move) score += 1_000_000;
 		if (move == killerMoves[ply][0] || move == killerMoves[ply][1]) score += 500_000;
+		
+		if (Main.globalPosition.currentMoveCount > 0) {
+			int previousMove = Main.globalPosition.moveHistory[Main.globalPosition.currentMoveCount - 1];
+			if (counterHeuristic[previousMove & 0x3F][(previousMove >>> 6) & 0x3F] == move) score += 100_000;
+		}
+		
+		score += historyHeuristic[color][move & 0x3F][to];
 		
 		return score;
 	}
@@ -75,11 +92,6 @@ public class Minimax {
 	    }
 	}
 	
-	public static final int FLAG_EXACT = 0;
-	public static final int FLAG_LOWERBOUND = 1; // (beta cutoff), cache value must be >= beta
-	public static final int FLAG_UPPERBOUND = 2; // (alpha cutoff), cache value must be <= alpha
-	public static final int FLAG_TIMEOUT = 3;
-	
 	// minDepth takes priority, if there is extra time it will run until maxTime (ms)
 	private static int[] iterativeDeepening(int minDepth, int maxTime, boolean isMaximizing) {
 		long startTime = System.nanoTime();
@@ -103,10 +115,10 @@ public class Minimax {
 		return previousBestMove;
 	}
 	
-	static int tableSize = 1 << 26;
+	static int tableSize = 1 << 22;
 	static long[] zobristKeys = new long[tableSize];
 	static int[][] zobristValues = new int[tableSize][4];
-	static final int MAX_QUIESSENCE_PLY = 12;
+	static final int MAX_QUIESCENCE_PLY = 12; // Maximum ply quiescence search will reach
 	static final int DELTA_PRUNING_MARGIN = 200; // centi-pawns
 	
 	static long[] repetitionHistory = new long[256];
@@ -125,11 +137,11 @@ public class Minimax {
 	}
 	
 	private static int quiescence(int alpha, int beta, boolean isMaximizing, int ply) {
-		if (ply >= MAX_QUIESSENCE_PLY) {
+		if (ply >= MAX_QUIESCENCE_PLY) {
 			return Main.globalPosition.getEval();
 		}
 
-		boolean currentlyInCheck = isMaximizing ? Main.globalPosition.attacks[1][Main.globalPosition.whiteKingPos] != null : Main.globalPosition.attacks[0][Main.globalPosition.blackKingPos] != null;
+		boolean currentlyInCheck = (Main.globalPosition.psuedoAttacks[1 - (isMaximizing ? 0 : 1)] & (1L << (isMaximizing ? Main.globalPosition.whiteKingPos : Main.globalPosition.blackKingPos))) != 0;
 		int standPat = Main.globalPosition.getEval();
 		
 		if (!currentlyInCheck) {
@@ -153,7 +165,7 @@ public class Minimax {
 		
 		if (allMoves.length == 0) {
 			if (currentlyInCheck) {
-				return isMaximizing ? -999_999 + ply : 999_999 - ply;
+				return isMaximizing ? -MATE_SCORE + ply : MATE_SCORE - ply;
 			} else return standPat;
 		}
 		
@@ -223,22 +235,21 @@ public class Minimax {
 		int pvMove = zobristKeys[zobristIndex] == Main.globalPosition.zobristHash ? zobristValues[zobristIndex][0] : -1;
 		sortByScore(legalMoves, pvMove, ply);
 		
-		boolean inCheck = Main.globalPosition.attacks[isMaximizing ? 1 : 0][isMaximizing ? Main.globalPosition.whiteKingPos : Main.globalPosition.blackKingPos] != null;
+		boolean inCheck = (Main.globalPosition.psuedoAttacks[1 - (isMaximizing ? 0 : 1)] & (1L << (isMaximizing ? Main.globalPosition.whiteKingPos : Main.globalPosition.blackKingPos))) != 0;
 		if (legalMoves.length == 0) {
 			if (inCheck) {
-				return new int[] {-1, isMaximizing ? -999_999 + ply : 999_999 - ply, -1, depth};
+				return new int[] {-1, isMaximizing ? -MATE_SCORE + ply : MATE_SCORE - ply, -1, depth};
 			} else {
-				return new int[] {-1, 0, -1, depth};
+				return new int[] {-1, DRAW_SCORE, -1, depth};
 			}
 		}
 		
-		if (isThreefoldRepetition()) return new int[] {-1, 0, -1, depth};
+		if (isThreefoldRepetition()) return new int[] {-1, DRAW_SCORE, -1, depth};
 		boolean isEndGame = (Main.globalPosition.whiteMaterialValue + Main.globalPosition.blackMaterialValue <= 1300);
-		int R = 2;
-		if (!isEndGame && ply > 0 && depth > R + 1 && !inCheck) {
+		int R = !isEndGame ? 2 : 1;
+		if (ply > 0 && depth > R + 1 && !inCheck) {
 			Main.globalPosition.toggleNullMove();
 			int[] score = minimax(depth - 1 - R, !isMaximizing, alpha, beta, ply + 1);
-			score[1] = -score[1];
 			Main.globalPosition.toggleNullMove();
 			
 			if (score[1] >= beta) {
@@ -253,8 +264,8 @@ public class Minimax {
 			if (promotionFlag != 0) move |= ((isMaximizing ? 5 : 11) << 22); // Promote to queen
 			
 			int[] scoreResult;
-			if (moveIndex >= 4 && depth >= 3 && !isCapture && !inCheck && promotionFlag == 0) {
-				int reduce = legalMoves.length > 10 ? 2 : 1;
+			if (moveIndex >= 3 && depth >= 3 && !isCapture && !inCheck && promotionFlag == 0) {
+				int reduce = legalMoves.length > 5 ? 2 : 1;
 				Main.globalPosition.makeMove(move, true);
 				scoreResult = minimax(depth - 1 - reduce, !isMaximizing, alpha, beta, ply + 1);
 				
@@ -290,6 +301,16 @@ public class Minimax {
 				if (!isCapture && promotionFlag == 0 && killerMoves[ply][0] != move) {
 					killerMoves[ply][1] = killerMoves[ply][0];
 					killerMoves[ply][0] = move;
+				}
+				
+				if (!isCapture) { // Counter Heuristic & History Heuristic
+					if (Main.globalPosition.currentMoveCount > 0) {
+						int lastMove = Main.globalPosition.moveHistory[Main.globalPosition.currentMoveCount - 1];
+						
+						counterHeuristic[lastMove & 0x3F][(lastMove >>> 6) & 0x3F] = move;
+					}
+					
+					historyHeuristic[isMaximizing ? 0 : 1][move & 0x3F][(move >>> 6) & 0x3F] += depth * depth;
 				}
 				
 				break;
@@ -343,3 +364,5 @@ public class Minimax {
 		return totalMoveCount;
 	}
 }
+
+

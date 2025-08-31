@@ -1,6 +1,4 @@
 package engine;
-
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -13,8 +11,6 @@ import java.util.concurrent.Future;
 import java.io.*;
 import java.util.*;
 import debug.DebugRender;
-
-
 public class MagicBitboards {
 	public static long[] rookMagics = {
 	    0x8A80104000800020L, 0x40004010002000L, 0x220008b200208040L, 0xc1001000a0884500L,
@@ -79,7 +75,7 @@ public class MagicBitboards {
 		return current;
 	}
 	
-	private static boolean withinBounds(int row, int col, int rangeMin, int rangeMax) {
+	public static boolean withinBounds(int row, int col, int rangeMin, int rangeMax) {
 		if (row < rangeMin || row > rangeMax) return false;
 		if (col < rangeMin || col > rangeMax) return false;
 		
@@ -294,8 +290,6 @@ public class MagicBitboards {
 			
 			for (int j = 0; j < numPermutations; j++) {
 				long permutation = 0L;
-
-
 				for (int k = 0; k < numBlockers; k++) {
 					if (((j >> k) & 1L) != 0) {
 						permutation |= (1L << blockerLocations[k]);
@@ -341,8 +335,6 @@ public class MagicBitboards {
 			
 			for (int j = 0; j < numPermutations; j++) {
 				long permutation = 0L;
-
-
 				for (int k = 0; k < numBlockers; k++) {
 					if (((j >> k) & 1L) != 0) {
 						permutation |= (1L << blockerLocations[k]);
@@ -372,21 +364,19 @@ public class MagicBitboards {
 	    long[] calculatedRookMagics = new long[64];
 	    long[] calculatedBishopMagics = new long[64];
 	    Random rng = new Random();
-	    
+	   
 	    // Create output file with timestamp
 	    String filename = String.format("magics[%s]_%d.txt", Arrays.toString(squaresToSearch), System.currentTimeMillis());
-	    
+	   
 	    try (PrintWriter writer = new PrintWriter(new FileWriter(filename, true))) {
 	        writer.println(String.format("=== Magic Number Search Results for [%s] ===", Arrays.toString(squaresToSearch)));
 	        writer.println("Started at: " + new Date());
 	        writer.println();
 	        writer.flush(); // Ensure header is written immediately
-	        
+	       
 	        for (int square : squaresToSearch) {
 	            int row = (int)Math.floor(square / 8);
 	            int col = square % 8;
-
-
 	            for (int t = 0; t <= 0; t++) {
 	                boolean isRook = (t == 0) ? true : false;
 	                long blockerMask = (isRook) ? genRookBlockerMask(row, col) : genBishopBlockerMask(row, col);
@@ -394,29 +384,23 @@ public class MagicBitboards {
 	                int numBlockers = blockerLocations.length;
 	                int numPermutations = 1 << numBlockers;
 	                int shift = 64 - numBlockers;
-
-
 	                int bestAttempt = -1;
 	                long bestLong = -1;
 	                long startTime = System.nanoTime();
-	                
+	               
 	                for (int attempt = 0; attempt < 500000000; attempt++) {
 	                    long magic = rng.nextLong();
 	                    Set<Integer> foundIndexes = new HashSet<Integer>();
 	                    boolean success = true;
-
 	                    for (int j = 0; j < numPermutations; j++) {
 	                        long permutation = 0L;
-
 	                        for (int k = 0; k < numBlockers; k++) {
 	                            if (((j >> k) & 1L) != 0) {
 	                                permutation |= (1L << blockerLocations[k]);
 	                            }
 	                        }
-
 	                        long product = permutation * magic;
 	                        int hashIndex = (int)((product >>> shift));
-
 	                        if (foundIndexes.contains(hashIndex)) {
 	                            success = false;
 	                            if (j > bestAttempt) {
@@ -428,22 +412,21 @@ public class MagicBitboards {
 	                            foundIndexes.add(hashIndex);
 	                        }
 	                    }
-
 	                    if (success) {
 	                        long endTime = System.nanoTime();
 	                        long elapsedTime = endTime - startTime;
 	                        double minutesElapsed = elapsedTime / 60_000_000_000.0;
-	                        
-	                        String result = String.format("[%d][%s] - %s - Took %d attempts, %.2f minutes", 
+	                       
+	                        String result = String.format("[%d][%s] - %s - Took %d attempts, %.2f minutes",
 	                            square, (isRook ? "Rook" : "Bishop"), Long.toHexString(magic), attempt, minutesElapsed);
-	                        
+	                       
 	                        // Print to console
 	                        System.out.println(result);
-	                        
+	                       
 	                        // Write to file immediately
 	                        writer.println(result);
 	                        writer.flush(); // Force write to disk immediately
-	                        
+	                       
 	                        if (isRook) {
 	                            calculatedRookMagics[square] = magic;
 	                        } else {
@@ -451,13 +434,11 @@ public class MagicBitboards {
 	                        }
 	                        break;
 	                    }
-
-
 	                    if (attempt % 10000000 == 0) {
-	                        String progress = String.format("[%d][%s] %d / %d, (0x%sL) Attempt %d", 
+	                        String progress = String.format("[%d][%s] %d / %d, (0x%sL) Attempt %d",
 	                            square, (isRook ? "Rook" : "Bishop"), bestAttempt, numPermutations, Long.toHexString(bestLong), attempt);
 	                        System.out.println(progress);
-	                        
+	                       
 	                        // Also log progress to file
 	                        writer.println("PROGRESS: " + progress);
 	                        writer.flush();
@@ -465,7 +446,7 @@ public class MagicBitboards {
 	                }
 	            }
 	        }
-	        
+	       
 	        // Write final summary
 	        writer.println();
 	        writer.println("=== FINAL SUMMARY ===");
@@ -484,12 +465,12 @@ public class MagicBitboards {
 	                writer.println(String.format("bishop_magics[%d] = 0x%sL;", i, Long.toHexString(calculatedBishopMagics[i])));
 	            }
 	        }
-	        
+	       
 	    } catch (IOException e) {
 	        System.err.println("Error writing to file: " + e.getMessage());
 	        e.printStackTrace();
 	    }
-	    
+	   
 	    // Still print to console for immediate feedback
 	    System.out.println(String.format("Results for range [%s]. Rooks:", Arrays.toString(squaresToSearch)));
 	    System.out.println(Arrays.toString(calculatedRookMagics));
@@ -511,6 +492,7 @@ public class MagicBitboards {
 	}
 	
 	public static long[] columnMasks = new long[64];
+	public static long[] rowMasks = new long[64];
 	public static long[][] pawnAttackMasks = new long[2][64];
 	public static long[] queenMasks = new long[64];
 	public static long[] rookAttackMasks = new long[64];
@@ -522,10 +504,13 @@ public class MagicBitboards {
 	public static void initMagicMasks() {
 		// Column masks
 		long column = (1L | 1L << 8 | 1L << 16 | 1L << 24 | 1L << 32 | 1L << 40 | 1L << 48 | 1L << 56);
+		long rowMask = (0xFFL);
 		for (int square = 0; square < 64; square++) {
 			int squareCol = square % 8;
+			int squareRow = square / 8;
 			
-			columnMasks[square % 8] = column << squareCol;
+			columnMasks[square] = column << squareCol;
+			rowMasks[square] = rowMask << (8 * squareRow);
 		}
 		
 		for (int square = 0; square < 64; square++) {
@@ -575,7 +560,7 @@ public class MagicBitboards {
 				if (withinBounds(targetRow, targetCol, 0, 7)) {
 					knightMask |= (1L << (targetRow * 8 + targetCol));
 				}
- 			}
+			}
 			
 			long bishopMask = 0L;
 			int[][] bishopDirs = {{1, 1}, {-1, -1}, {-1, 1}, {1, -1}};
@@ -646,10 +631,13 @@ public class MagicBitboards {
 	}
 	
 	private static long[][] lines = new long[64][64];
+	private static long[][] specialLines = new long[64][64];
+	
 	public static void initPrecomputedLineBB() {
 		for (byte start = 0; start < 64; start++) {
 			for (byte end = 0; end < 64; end++) {
 				lines[start][end] = generateLine(start, end);
+				specialLines[start][end] = generateSpecialLine(start, end);
 			}
 		}
 	}
@@ -692,9 +680,47 @@ public class MagicBitboards {
 		return bitboard;
 	}
 	
+	private static long generateSpecialLine(byte squareStart, byte squareEnd) {
+		long bitboard = 0L;
+		if (squareStart == squareEnd) return bitboard;
+		
+		byte startRow = (byte)(squareStart / 8);
+		byte startCol = (byte)(squareStart % 8);
+		
+		byte endRow = (byte)(squareEnd / 8);
+		byte endCol = (byte)(squareEnd % 8);
+		
+		int dx = (int)Math.signum(endRow - startRow);
+		int dy = (int)Math.signum(endCol - startCol);
+		
+		int curRow = startRow + dx;
+		int curCol = startCol + dy;
+		
+		while (withinBounds(curRow, curCol, 0, 7)) {
+			bitboard |= (1L << (curRow * 8 + curCol));
+			
+			curRow += dx;
+			curCol += dy;
+		}
+		
+		curRow = startRow - dx;
+		curCol = startCol - dy;
+		while (withinBounds(curRow, curCol, 0, 7)) {
+			bitboard |= (1L << (curRow * 8 + curCol));
+			
+			curRow -= dx;
+			curCol -= dy;
+		}
+		
+		return bitboard;
+	}
+	
 	public static long lineBB(byte squareStart, byte squareEnd) {
 		return lines[squareStart][squareEnd];
 	}
+	
+	public static long specialLineBB(byte squareStart, byte squareEnd) {
+		return specialLines[squareStart][squareEnd];
+	}
 }
-
 

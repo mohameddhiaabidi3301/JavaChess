@@ -60,6 +60,8 @@ public class LegalityCheck {
 		long allPinsMask = 0L;
 		
 		for (int square : MagicBitboards.getSetBits(opponentRayPieces)) {
+			byte type = (byte)(chessPosition.engineLookup[square] > 6 ? chessPosition.engineLookup[square] - 6 : chessPosition.engineLookup[square]);
+			if ((type == 3 && (((MagicBitboards.bishopAttackMasks[square] & (1L << myKingPos)) == 0)) || (type == 4 && ((MagicBitboards.rookAttackMasks[square] & (1L << myKingPos)) == 0)))) continue;
 			long ray = MagicBitboards.lineBB((byte)square, myKingPos) & chessPosition.allOccupied;
 			long blockers = ray & chessPosition.allOccupied;
 			
@@ -222,3 +224,4 @@ public class LegalityCheck {
 		return Arrays.copyOf(filteredMoves, legalCount);
 	}
 }
+
