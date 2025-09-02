@@ -138,10 +138,10 @@ public class Board {
 		waitingForPromotion |= (selectionKey << 22);
 		Main.globalPosition.makeMove(waitingForPromotion, false);
 		
-		int[] computerMove = Minimax.getComputerMove(5, 5000, false);
+		int computerMove = Minimax.getComputerMove(2, 500, false);
 		
-		System.out.println(Arrays.toString(computerMove));			
-		Main.globalPosition.makeMove(computerMove[0], false);
+		System.out.println(computerMove);			
+		Main.globalPosition.makeMove(computerMove, false);
 		
 		renderAllPieces();
 		
@@ -249,10 +249,10 @@ public class Board {
 								Main.globalPosition.makeMove(move, false);		
 													
 								
-								int[] computerMove = Minimax.getComputerMove(1, 500, false);
+								int computerMove = Minimax.getComputerMove(2, 500, false);
 								 
-								System.out.println(Arrays.toString(computerMove));
-								Main.globalPosition.makeMove(computerMove[0], false);
+								System.out.println(computerMove);
+								Main.globalPosition.makeMove(computerMove, false);
 								
 								renderAllPieces();
 								
