@@ -685,7 +685,7 @@ public class Position {
 		return Arrays.copyOf(moves, moveCount);
 	}
 	
-	public int[] getAllCapturesChecks(byte color) {
+	public int[] getCapturesChecksPromotions(byte color) {
 		int[] moves = new int[64];
 		int moveCount = 0;
 		
@@ -754,6 +754,34 @@ public class Position {
 				move |= (0 << 16); // Must not be a capture
 				move |= (color << 31);
 				
+				moves[moveCount++] = move;
+			}
+		}
+		
+		for (int square : MagicBitboards.getSetBits(bitboards[color == 0 ? 1 : 7])) {
+			int dir = (color == 0) ? 8 : -8;
+			int subPromotionRow = (color == 0) ? 6 : 1;
+			boolean onPromotionRow = (square / 8) == subPromotionRow;
+			if (!onPromotionRow) continue;
+			
+			if ((((allOccupied & (1L << (square + dir))) == 0))) {
+				int move = square;
+				move |= ((square + dir) << 6);
+				move |= ((color == 0 ? 1 : 7) << 12);
+				move |= (0 << 16); // Cant be a capture
+				move |= (1 << 27); // Promotion
+				move |= (color << 31);
+				moves[moveCount++] = move;
+			}
+	
+			long pawnCaptures = MagicBitboards.pawnAttackMasks[color][square] & opponentOccupancy;
+			for (int capt : MagicBitboards.getSetBits(pawnCaptures)) {
+				int move = square;
+				move |= (capt << 6);
+				move |= ((color == 0 ? 1 : 7) << 12);
+				move |= (engineLookup[capt] << 16);
+				move |= (1 << 27); // promotion
+				move |= (color << 31);
 				moves[moveCount++] = move;
 			}
 		}
@@ -992,8 +1020,8 @@ public class Position {
 				guilookupBoard[from + 3] = "";
 				guilookupBoard[from + 1] = rookName;
 			} else {
-				bitboards[ourRookIndex] &= ~(1L << from - 4);
-				bitboards[ourRookIndex] |= (1L << from - 1);
+				bitboards[ourRookIndex] &= ~(1L << (from - 4));
+				bitboards[ourRookIndex] |= (1L << (from - 1));
 				
 				if (color == 0) {
 					whiteOccupied &= ~(1L << (from - 4));
@@ -1200,52 +1228,32 @@ public class Position {
 		zobristHash ^= whiteToMoveKey;
 	}
 	
-	public int getEval() {		
+	public int getEval(int side) {		
 		int whiteMaterialValue = 0;
 		int blackMaterialValue = 0;
-		
-		int whitePST = 0;
-		int blackPST = 0;
-		int whiteBonus = 0;
-		int blackBonus = 0;
 
 		int[] whiteLocations = MagicBitboards.getSetBits(whiteOccupied);
 		int[] blackLocations = MagicBitboards.getSetBits(blackOccupied);
 		
 		int phase = 0;
+		int score = 0;
 		
 		// Material and phase calculation
 		for (int square : whiteLocations) {
 			byte pieceType = engineLookup[square];
 			
-			whiteMaterialValue += EvaluateBoard.valueMap[pieceType];	
+			score += EvaluateBoard.valueMap[pieceType];	
 			phase += EvaluateBoard.phaseMap[pieceType];
 		}
 		
 		for (int square : blackLocations) {
 			byte pieceType = engineLookup[square];
 			
-			blackMaterialValue += EvaluateBoard.valueMap[pieceType];
+			score -= EvaluateBoard.valueMap[pieceType];
 			phase += EvaluateBoard.phaseMap[pieceType - 6];
 		}
 		
-		// Bonus for side to move and check
-		if (sideToMove == 0) whiteBonus += 15; else blackBonus += 15;
-		if ((psuedoAttacks[0] & (1L << blackKingPos)) != 0) whiteBonus += 15;
-		if ((psuedoAttacks[1] & (1L << whiteKingPos)) != 0) blackBonus += 15;
-		
-		// PST
-		for (int square : MagicBitboards.getSetBits(allOccupied)) {
-			byte color = (byte)((whiteOccupied & (1L << square)) != 0 ? 0 : 1);
-			byte type = (byte)(engineLookup[square] > 6 ? engineLookup[square] - 6 : engineLookup[square]);
-			int openingBonus = EvaluateBoard.pstOpening[color][type - 1][square];
-			int endGameBonus = EvaluateBoard.pstEndgame[color][type - 1][square];
-			
-			int blended = (openingBonus * phase + endGameBonus * (24 - phase)) / 24;
-			if (color == 0) whitePST += blended; else blackPST += blended;
-		};
-		
-		return (whiteMaterialValue - blackMaterialValue) + (whitePST - blackPST);
+		return side == 0 ? score : -score;
 	}
 	
 	// ZOBRIST HASHING

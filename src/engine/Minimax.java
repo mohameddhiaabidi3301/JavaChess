@@ -27,6 +27,7 @@ public class Minimax {
 	static int[][] killerMoves = new int[128][2]; // Moves that caused beta cutoff
 	static int[][] counterHeuristic = new int[64][64]; // The last best replies to each move
 	static int[][][] historyHeuristic = new int[2][64][64];
+	static int[] pvLine = new int[128];
 	
 	public static int getComputerMove(int minDepth, int maxMs, boolean isMaximizing) {
 		long startTime = System.nanoTime();
@@ -76,6 +77,8 @@ public class Minimax {
 	    }
 	}
 	
+	private static final int INFINITY = 2_000_000;
+	
 	// minDepth takes priority, if there is extra time it will run until maxTime (ms)
 	private static int iterativeDeepening(int minDepth, int maxTime, boolean isMaximizing) {
 		long startTime = System.nanoTime();
@@ -88,8 +91,9 @@ public class Minimax {
 				break;
 			}
 			
-			negaMax(currentDepth, Integer.MIN_VALUE, Integer.MAX_VALUE, (byte)(isMaximizing ? 0 : 1), (byte)(0));
-			int[] bestMoveInfo = TT.probe(Main.globalPosition.zobristHash, Integer.MIN_VALUE, Integer.MAX_VALUE, (byte)(currentDepth));
+			TT.nextRootSearch();
+			int negascore = negamax(currentDepth, -INFINITY, INFINITY, 0);
+			int[] bestMoveInfo = TT.probe(Main.globalPosition.zobristHash, -INFINITY, INFINITY, currentDepth, currentDepth);
 			
 			int newMove = -1;
 			int score = 0;
@@ -102,6 +106,7 @@ public class Minimax {
 			previousBestMove = newMove;
 			System.out.println("(" + ((System.nanoTime() - startTime) / 1_000_000) + " ms)" + "Move at depth " + currentDepth + ": " + Position.logMove(previousBestMove) + ": " + score);
 			
+			TT.set(Main.globalPosition.zobristHash, currentDepth, negascore, newMove, FLAG_EXACT, true);
 			if (currentDepth > 50) break;
 		}
 		
@@ -118,95 +123,123 @@ public class Minimax {
 				count++;
 			}
 			
-			if (count >= 2) return true;
+			if (count >= 3) return true;
 		}
 		return false;
 	}
 	
-	// alpha: best score we can guarantee so far (lower bound)
-	// beta: worst score the opponent can hold us to (upper bound)
-	
-	public static int quiescenceSearch(byte ply, int alpha, int beta, byte color) {
-		int standPat = Main.globalPosition.getEval() * (1 - (color << 1));
+	public static int quiescence(int alpha, int beta, int ply, int localPly) {
+		byte sideToMove = Main.globalPosition.sideToMove;
+		int standPat = Main.globalPosition.getEval(sideToMove);
 		
-		if (ply > MAX_QUIESCENCE_PLY) {
-			return standPat;
+		if (localPly >= 10) {
+			return Main.globalPosition.getEval(sideToMove);
 		}
 		
-		if (standPat >= beta) return standPat;
-		alpha = Math.max(alpha, standPat);
+		if (standPat >= beta) {
+			return beta;
+		} else if (standPat > alpha) {
+			alpha = standPat;
+		}
 		
-		int[] allMoves = Main.globalPosition.getAllCapturesChecks(color);
-		sortByScore(allMoves, ply);
+		boolean inCheck = (Main.globalPosition.psuedoAttacks[1 - sideToMove] & (1L << (sideToMove == 0 ? Main.globalPosition.whiteKingPos : Main.globalPosition.blackKingPos))) != 0;
+		int[] moves = inCheck ? Main.globalPosition.getAllLegalMoves(sideToMove) :
+			Main.globalPosition.getCapturesChecksPromotions(sideToMove);
 		
-		int bestScore = standPat;
-		for (int move : allMoves) {
+		if (moves.length == 0) {
+			if (inCheck) {
+				return -MATE_SCORE + ply;
+			} else {
+				return standPat;
+			}
+		}
+		
+		int bestScore = -INFINITY;
+		for (int move : moves) {
+			byte promotionFlag = (byte)((move >>> 27) & 1);
+			if (promotionFlag != 0) move |= (sideToMove == 0 ? 5 : 11) << 22;
+			
 			Main.globalPosition.makeMove(move, true);
-			int score = -quiescenceSearch((byte)(ply + 1), -beta, -alpha, (byte)(color ^ 1));
+			int eval = -quiescence(-beta, -alpha, ply + 1, localPly + 1);
 			Main.globalPosition.unmakeMove(move);
 			
-			if (score > bestScore) {
-				bestScore = score;
+			if (eval > bestScore) {
+				bestScore = eval;
+				alpha = Math.max(eval, alpha);
 			}
 			
-			alpha = Math.max(alpha, score);
-			if (alpha >= beta) break;
+			if (alpha >= beta) {
+				break;
+			}
 		}
-		
+
 		return bestScore;
 	}
 	
-	private static int[] pvLine = new int[128];
-	public static int negaMax(byte depth, int alpha, int beta, byte color, byte ply) {
+	// ALPHA - Lowerbound, Best Score we've found so far so any new score needs to be higher
+	// BETA - Upperbound, Since the opponent wants to minimize, this is the lowest score the opponent found
+	// They wont allow us to play it since its too good, needs to be lower than upperbound
+	// Score: alpha <= real_score <= beta, if alpha >= beta bounds collapse so prune, wont go down the route
+	public static int negamax(byte depth, int alpha, int beta, int ply) {
+		byte sideToMove = Main.globalPosition.sideToMove;
+		
+		int[] moves = Main.globalPosition.getAllLegalMoves(sideToMove);
+		int bestEval = -INFINITY;
+		int bestMove = -1;
+		
+		int[] knownScore = TT.probe(Main.globalPosition.zobristHash, alpha, beta, depth, ply);
+		if (knownScore != null) {
+			pvLine[ply] = knownScore[1];
+			return knownScore[0];
+		}
+		
+		boolean inCheck = (Main.globalPosition.psuedoAttacks[1 - sideToMove] & (1L << (sideToMove == 0 ? Main.globalPosition.whiteKingPos : Main.globalPosition.blackKingPos))) != 0;
+		if (moves.length == 0) {
+			if (inCheck) {
+				return -MATE_SCORE + ply;
+			} else {
+				return 0;
+			}
+		}
+		
 		if (depth <= 0) {
-			return quiescenceSearch(ply, alpha, beta, color);
-		};
-		
-		int[] existingEntry = TT.probe(Main.globalPosition.zobristHash, alpha, beta, depth);
-		if (existingEntry != null) {
-			pvLine[ply] = existingEntry[1];
-			return existingEntry[0];
+			return quiescence(alpha, beta, ply, 0);
 		}
 		
-		int alphaOrigin = alpha;
-		int betaOrigin = beta;
-		
-		int bestScore = Integer.MIN_VALUE;
-		int pvMove = -1;
-	
-		int[] legalMoves = Main.globalPosition.getAllLegalMoves(color);
-		sortByScore(legalMoves, ply);
-		
-		for (int move : legalMoves) {
+		sortByScore(moves, ply);
+		int originalAlpha = alpha;
+		for (int move : moves) {
+			byte promotionFlag = (byte)((move >>> 27) & 1);
+			if (promotionFlag != 0) move |= (sideToMove == 0 ? 5 : 11) << 22;
+			
 			Main.globalPosition.makeMove(move, true);
-			int score = -negaMax((byte)(depth - 1), -beta, -alpha, (byte)(color ^ 1), (byte)(ply + 1));
+			int score = -negamax((byte)(depth - 1), -beta, -alpha, ply + 1); // Swap & Negate since the bounds flip and score perspective flips
 			Main.globalPosition.unmakeMove(move);
 			
-			if (score > bestScore) {
-				bestScore = score;
-				pvMove = move;
+			if (score > bestEval) {
+				bestEval = score;
+				bestMove = move;
+				
+				alpha = Math.max(alpha, bestEval);
 			}
 			
-			alpha = Math.max(score, alpha);
-			if (alpha >= beta) break;
+			if (alpha >= beta) {
+				break;
+			}
 		}
 		
-		byte flag;
-		long zobristHash = Main.globalPosition.zobristHash;
-		if (bestScore <= alphaOrigin) { // We were unable to find a move better than what we had: Fail-low: Upperbound
+		byte flag = FLAG_EXACT;
+		if (bestEval <= originalAlpha) {
 			flag = FLAG_UPPERBOUND;
-		} else if (bestScore >= betaOrigin) { // Fail high, exceeded opponent threshold they wouldn't go down this node: Lowerbound
+		} else if (bestEval >= beta) {
 			flag = FLAG_LOWERBOUND;
-		} else { // Exact, bestscore is within alphaOrigin and betaOrigin normal bounds
-			flag = FLAG_EXACT;
 		}
 		
-		TT.set(Main.globalPosition.zobristHash, depth, bestScore, pvMove, flag);
-		
-		return bestScore;
+		TT.set(Main.globalPosition.zobristHash, depth, bestEval, bestMove, flag, false);
+		return bestEval;
 	}
 	
-	public static int[] runPerft(int depth, int ply, boolean isWhite, int previousMove) {
+ 	public static int[] runPerft(int depth, int ply, boolean isWhite, int previousMove) {
 		int[] moves = isWhite ? Main.globalPosition.getAllLegalMoves((byte)0) : Main.globalPosition.getAllLegalMoves((byte)1);
 		if (depth == 0) {
 			byte targetKey = (byte)((previousMove >>> 16) & 0xF);
