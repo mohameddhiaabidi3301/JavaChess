@@ -138,7 +138,7 @@ public class Board {
 		waitingForPromotion |= (selectionKey << 22);
 		Main.globalPosition.makeMove(waitingForPromotion, false);
 		
-		int computerMove = Minimax.getComputerMove(2, 500, false);
+		int computerMove = Minimax.getComputerMove(2, 500);
 		
 		System.out.println(computerMove);			
 		Main.globalPosition.makeMove(computerMove, false);
@@ -249,7 +249,7 @@ public class Board {
 								Main.globalPosition.makeMove(move, false);		
 													
 								
-								int computerMove = Minimax.getComputerMove(2, 500, false);
+								int computerMove = Minimax.getComputerMove(2, 500);
 								 
 								System.out.println(computerMove);
 								Main.globalPosition.makeMove(computerMove, false);

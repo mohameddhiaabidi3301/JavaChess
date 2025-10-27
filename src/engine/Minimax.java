@@ -29,10 +29,10 @@ public class Minimax {
 	static int[][][] historyHeuristic = new int[2][64][64];
 	static int[] pvLine = new int[128];
 	
-	public static int getComputerMove(int minDepth, int maxMs, boolean isMaximizing) {
+	public static int getComputerMove(int minDepth, int maxMs) {
 		long startTime = System.nanoTime();
 		
-		int move = iterativeDeepening(minDepth, maxMs, isMaximizing);
+		int move = iterativeDeepening(minDepth, maxMs);
 		
 		long endTime = System.nanoTime();
 		int millisecondsEllapsed = (int)((endTime - startTime) / 1_000_000);
@@ -44,10 +44,21 @@ public class Minimax {
 	
 	private static int moveScoreHeuristic(int move, int ply) {
 		int score = 0;
+		byte to = (byte)((move >>> 6) & 0x3F);
 		byte captureType = (byte) ((move >>> 16) & 0xF);
+		byte fromType = (byte)((move >>> 12) & 0xF);
+		byte color = (byte)((move >>> 31) & 1);
 		
-		if (pvLine[ply] == move) score += 999_999;
-		if (captureType != 0) score += 10_000;
+		if (pvLine[ply] == move) score += 99_999;
+		if (captureType != 0) {
+			score += 10_000 + (valueMap[captureType] - valueMap[fromType]);
+			if ((Main.globalPosition.psuedoAttacks[1 - color] & (1L << to)) == 0) {
+				score += 5_000; // Good undefended capture
+			}
+		};
+		if (killerMoves[ply][0] == move || killerMoves[ply][1] == move) {
+			score += 10_000;
+		}
 		
 		return score;
 	}
@@ -80,7 +91,7 @@ public class Minimax {
 	private static final int INFINITY = 2_000_000;
 	
 	// minDepth takes priority, if there is extra time it will run until maxTime (ms)
-	private static int iterativeDeepening(int minDepth, int maxTime, boolean isMaximizing) {
+	private static int iterativeDeepening(int minDepth, int maxTime) {
 		long startTime = System.nanoTime();
 		
 		int previousBestMove = -1;
@@ -128,6 +139,7 @@ public class Minimax {
 		return false;
 	}
 	
+	private final static int DELTA_PRUNING_MARGIN = 200;
 	public static int quiescence(int alpha, int beta, int ply, int localPly) {
 		byte sideToMove = Main.globalPosition.sideToMove;
 		int standPat = Main.globalPosition.getEval(sideToMove);
@@ -157,6 +169,12 @@ public class Minimax {
 		int bestScore = -INFINITY;
 		for (int move : moves) {
 			byte promotionFlag = (byte)((move >>> 27) & 1);
+			byte captureType = (byte)((move >>> 16) & 0xF);
+			
+			if (promotionFlag == 0 && captureType != 0 && !inCheck && standPat + valueMap[captureType] + DELTA_PRUNING_MARGIN < alpha) {
+				continue;
+			}
+			
 			if (promotionFlag != 0) move |= (sideToMove == 0 ? 5 : 11) << 22;
 			
 			Main.globalPosition.makeMove(move, true);
@@ -202,30 +220,70 @@ public class Minimax {
 			}
 		}
 		
+		if (isThreefoldRepetition()) {
+			return 0;
+		}
+		
 		if (depth <= 0) {
 			return quiescence(alpha, beta, ply, 0);
 		}
 		
+		int R = 2;
+		if (ply > 0 && depth > R + 1 && !inCheck && Main.globalPosition.phase >= 7) {
+			Main.globalPosition.toggleNullMove();
+			int score = -negamax((byte)(depth - 1 - R), -beta, -alpha, ply + 1);
+			Main.globalPosition.toggleNullMove();
+			
+			if (score >= beta) {
+				return beta;
+			}
+		}
+		
 		sortByScore(moves, ply);
 		int originalAlpha = alpha;
+		byte index = 0;
 		for (int move : moves) {
 			byte promotionFlag = (byte)((move >>> 27) & 1);
 			if (promotionFlag != 0) move |= (sideToMove == 0 ? 5 : 11) << 22;
 			
+			int score;
 			Main.globalPosition.makeMove(move, true);
-			int score = -negamax((byte)(depth - 1), -beta, -alpha, ply + 1); // Swap & Negate since the bounds flip and score perspective flips
+			
+			if (pvLine[ply] != move && depth >= 3 && index >= 5 && ((move >>> 16) & 0xF) == 0 && promotionFlag == 0 && !inCheck) {
+				int reduce = moves.length > 7 ? 2 : 1;
+				score = -negamax((byte)(depth - 1 - reduce), -beta, -alpha, ply + 1);
+				
+				if (score > alpha) {
+					score = -negamax((byte)(depth - 1), -beta, -alpha, ply + 1);
+				}
+			} else {
+				score = -negamax((byte)(depth - 1), -beta, -alpha, ply + 1); // Swap & Negate since the bounds flip and score perspective flips
+			}
+			
 			Main.globalPosition.unmakeMove(move);
 			
 			if (score > bestEval) {
 				bestEval = score;
 				bestMove = move;
 				
+				pvLine[ply] = move;
+				//System.arraycopy(pvLine, ply + 1, pvLine, ply + 1, pvLine.length - (ply + 1));
+				
 				alpha = Math.max(alpha, bestEval);
 			}
 			
 			if (alpha >= beta) {
+				boolean isCapture = ((move >>> 16) & 0xF) != 0;
+				
+				if (!isCapture && promotionFlag == 0 && killerMoves[ply][0] != move) {
+					killerMoves[ply][1] = killerMoves[ply][0];
+					killerMoves[ply][0] = move;
+				}
+				
 				break;
 			}
+			
+			index++;
 		}
 		
 		byte flag = FLAG_EXACT;

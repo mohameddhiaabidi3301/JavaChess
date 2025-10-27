@@ -493,6 +493,8 @@ public class MagicBitboards {
 	
 	public static long[] columnMasks = new long[64];
 	public static long[] rowMasks = new long[64];
+	public static long[][] passedPawnMasks = new long[2][64];
+	public static long[] isolatedPawnMasks = new long[64];
 	public static long[][] pawnAttackMasks = new long[2][64];
 	public static long[] queenMasks = new long[64];
 	public static long[] rookAttackMasks = new long[64];
@@ -503,14 +505,18 @@ public class MagicBitboards {
 	
 	public static void initMagicMasks() {
 		// Column masks
-		long column = (1L | 1L << 8 | 1L << 16 | 1L << 24 | 1L << 32 | 1L << 40 | 1L << 48 | 1L << 56);
+		long column = 0x101010101010101L;
 		long rowMask = (0xFFL);
 		for (int square = 0; square < 64; square++) {
 			int squareCol = square % 8;
 			int squareRow = square / 8;
 			
 			columnMasks[square] = column << squareCol;
-			rowMasks[square] = rowMask << (8 * squareRow);
+			rowMasks[square] = rowMask << (8 * squareRow); 
+			long wideColumnMask = ((column << Math.max(0, squareCol-1)) | (column << squareCol) | (column << Math.min(7, squareCol+1)));
+			passedPawnMasks[0][square] = (-1L << (8 * Math.max(7, squareRow))) & wideColumnMask;
+			passedPawnMasks[1][square] = (-1L >>> (8 * (Math.max(7, squareRow + 2)))) & wideColumnMask;
+			isolatedPawnMasks[square] = (wideColumnMask ^ columnMasks[square]) & -1L;
 		}
 		
 		for (int square = 0; square < 64; square++) {

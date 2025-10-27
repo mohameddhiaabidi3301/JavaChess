@@ -34,12 +34,10 @@ public class Main {
 		globalPosition.updateAttacksTEST((byte)0);
 		globalPosition.updateAttacksTEST((byte)1);
 		
-//		boolean isMaximizing = true;
 //		for (int i = 0; i < 200; i++) {
-//			int[] computerMove = Minimax.getComputerMove(1, 500, isMaximizing);
-//			 
-//			System.out.println(Arrays.toString(computerMove));
-//			Main.globalPosition.makeMove(computerMove[0], false);
+//			int computerMove = Minimax.getComputerMove(1, 500);
+//
+//			Main.globalPosition.makeMove(computerMove, false);
 //			
 //			Board.renderAllPieces();
 //			try {
@@ -47,8 +45,6 @@ public class Main {
 //			} catch (InterruptedException e) {
 //				e.printStackTrace();
 //			}
-//			
-//			isMaximizing = !isMaximizing;
 //		}
 	}
 }

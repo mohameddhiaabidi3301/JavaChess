@@ -1228,14 +1228,13 @@ public class Position {
 		zobristHash ^= whiteToMoveKey;
 	}
 	
+	private static final int[] passedBonuses = {0, 0, 5, 5, 10, 20, 35, 70};
+	public int phase = 0;
 	public int getEval(int side) {		
-		int whiteMaterialValue = 0;
-		int blackMaterialValue = 0;
-
 		int[] whiteLocations = MagicBitboards.getSetBits(whiteOccupied);
 		int[] blackLocations = MagicBitboards.getSetBits(blackOccupied);
 		
-		int phase = 0;
+		phase = 0;
 		int score = 0;
 		
 		// Material and phase calculation
@@ -1243,14 +1242,56 @@ public class Position {
 			byte pieceType = engineLookup[square];
 			
 			score += EvaluateBoard.valueMap[pieceType];	
+			score += EvaluateBoard.pst[pieceType - 1][square];
 			phase += EvaluateBoard.phaseMap[pieceType];
+			
+			if (pieceType == 1) { // Pawn
+				if (((bitboards[1] ^ (1L << square)) & MagicBitboards.columnMasks[square]) != 0) {
+					score -= 7; // Double pawn penalty
+				}
+				
+				if ((MagicBitboards.passedPawnMasks[0][square] & bitboards[7]) == 0) {
+					score += passedBonuses[(square / 8)]; // Passed pawn bonus
+				}
+				
+				if ((MagicBitboards.isolatedPawnMasks[square] & bitboards[1]) == 0) {
+					score -= 6; // Isolated Penalty
+				}
+			}
 		}
 		
 		for (int square : blackLocations) {
 			byte pieceType = engineLookup[square];
-			
 			score -= EvaluateBoard.valueMap[pieceType];
+			score -= EvaluateBoard.pst[pieceType-7][(7 - (square / 8)) * 8 + (square % 8)];
 			phase += EvaluateBoard.phaseMap[pieceType - 6];
+			
+			if (pieceType == 7) { // Pawn
+				if (((bitboards[7] ^ (1L << square)) & MagicBitboards.columnMasks[square]) != 0) {
+					score += 7; // Double pawn penalty
+				}
+				
+				if ((MagicBitboards.passedPawnMasks[1][square] & bitboards[1]) == 0) {
+					score -= passedBonuses[(7 - (square / 8))]; // Passed Bonus
+				}
+				
+				if ((MagicBitboards.isolatedPawnMasks[square] & bitboards[7]) == 0) {
+					score += 6; // Isolated Penalty
+				}
+			}
+		}
+		
+		// King safety important in early to late middle game about
+		if (phase >= 14) {
+			long openWhiteRookFiles = MagicBitboards.rookBitTableLookup[whiteKingPos][(int)(((MagicBitboards.rookMasks[whiteKingPos] & allOccupied) * MagicBitboards.rookMagics[whiteKingPos]) >>> MagicBitboards.rookShifts[whiteKingPos])];
+			long openWhiteBishopFiles = MagicBitboards.bishopBitTableLookup[whiteKingPos][(int)(((MagicBitboards.bishopMasks[whiteKingPos] & allOccupied) * MagicBitboards.bishopMagics[whiteKingPos]) >>> MagicBitboards.bishopShifts[whiteKingPos])];
+			
+			score -= Long.bitCount(openWhiteRookFiles | openWhiteBishopFiles);
+			
+			long openBlackRookFiles = MagicBitboards.rookBitTableLookup[blackKingPos][(int)(((MagicBitboards.rookMasks[blackKingPos] & allOccupied) * MagicBitboards.rookMagics[blackKingPos]) >>> MagicBitboards.rookShifts[blackKingPos])];
+			long openBlackBishopFiles = MagicBitboards.bishopBitTableLookup[blackKingPos][(int)(((MagicBitboards.bishopMasks[blackKingPos] & allOccupied) * MagicBitboards.bishopMagics[blackKingPos]) >>> MagicBitboards.bishopShifts[blackKingPos])];
+			
+			score += Long.bitCount(openBlackRookFiles | openBlackBishopFiles);
 		}
 		
 		return side == 0 ? score : -score;
