@@ -5,5 +5,8 @@
  * 
  */
 module JavaChess {
-	requires java.desktop;
+    requires java.desktop;
+    exports engine;
+    exports gui;
+    exports debug;
 }
