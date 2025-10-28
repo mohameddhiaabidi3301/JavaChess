@@ -8,14 +8,21 @@ import java.util.Set;
 import java.util.HashSet;
 
 public class DebugRender {
+	private static JFrame mainFrame;
+	private static JPanel board;
+
 	public static void renderLong(long bits) {
-		JFrame mainFrame = new JFrame("Debug");
-		mainFrame.setSize(new Dimension(480, 480));
-		
-		JPanel board = new JPanel();
-		mainFrame.add(board);
-		board.setSize(new Dimension(480, 480));
-		board.setLayout(new GridLayout(8, 8));
+		if (mainFrame == null) {
+			mainFrame = new JFrame("Debug");
+			mainFrame.setSize(new Dimension(480, 480));
+			mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+			board = new JPanel(new GridLayout(8, 8));
+			mainFrame.add(board);
+			mainFrame.setVisible(true);
+		} else {
+			board.removeAll();
+		}
+
 		
 		for (int row = 0; row < 8; row++) {
 			for (int col = 0; col < 8; col++) {
@@ -28,6 +35,9 @@ public class DebugRender {
 				
 				JPanel newTile = new Tile(tileColor, borderColor, msg);
 				board.add(newTile);
+				board.revalidate();
+				board.repaint();
+
 			}
 		}
 		
@@ -58,6 +68,9 @@ public class DebugRender {
 				
 				JPanel newTile = new Tile(tileColor, borderColor, msg);
 				board.add(newTile);
+				board.revalidate();
+				board.repaint();
+
 			}
 		}
 		
@@ -99,6 +112,9 @@ public class DebugRender {
 				
 				JPanel newTile = new Tile(tileColor, borderColor, msg);
 				board.add(newTile);
+				board.revalidate();
+				board.repaint();
+
 			}
 		}
 		
@@ -147,6 +163,9 @@ public class DebugRender {
 				
 				JPanel newTile = new Tile(tileColor, borderColor, msg);
 				board.add(newTile);
+				board.revalidate();
+				board.repaint();
+
 			}
 		}
 		
